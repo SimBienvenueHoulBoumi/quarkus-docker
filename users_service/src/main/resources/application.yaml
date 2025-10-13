@@ -1,0 +1,39 @@
+quarkus:
+  http:
+    port: ${HTTP_PORT:8081}
+  datasource:
+    db-kind: postgresql
+    username: ${DB_USER:appuser}
+    password: ${DB_PASSWORD:apppassword}
+    jdbc:
+      url: ${DB_JDBC_URL:jdbc:postgresql://localhost:5432/appdb}
+  hibernate-orm:
+    database:
+      generation: update
+  log:
+    category:
+      "org.hibernate.SQL":
+        level: INFO
+  
+  smallrye-openapi:
+    path: /q/openapi
+  
+  swagger-ui:
+    always-include: true
+    path: /q/swagger-ui
+
+mp:
+  jwt:
+    verify:
+      algorithm: HS256
+      publickey: ${JWT_SECRET:change-me-please-change-me-32-bytes-secret}
+
+smallrye:
+  jwt:
+    sign:
+      key: ${JWT_SECRET:change-me-please-change-me-32-bytes-secret}
+
+jwt:
+  issuer: ${JWT_ISSUER:users-service}
+  expiration:
+    minutes: ${JWT_EXPIRATION_MINUTES:15}

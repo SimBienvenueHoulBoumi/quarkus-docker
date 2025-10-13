@@ -1,0 +1,42 @@
+quarkus:
+  application:
+    name: api-gateway
+  http:
+    port: ${HTTP_PORT:9000}
+    cors: true
+  
+  # Swagger UI Configuration
+  swagger-ui:
+    always-include: true
+    path: /q/swagger-ui
+    urls:
+      users: /openapi/users
+      articles: /openapi/articles
+      orders: /openapi/orders
+      notifications: /openapi/notifications
+    urls-primary-name: users
+  
+  smallrye-openapi:
+    path: /q/openapi
+    info-title: E-Commerce Microservices API Gateway
+    info-version: 1.0.0
+    info-description: Unified API Gateway for all microservices
+
+# JWT Configuration
+mp:
+  jwt:
+    verify:
+      publickey: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes}
+      algorithm: HS256
+      issuer: ${JWT_ISSUER:users-service}
+
+# Microservices URLs
+services:
+  users:
+    url: ${USERS_SERVICE_URL:http://localhost:8081}
+  articles:
+    url: ${ARTICLES_SERVICE_URL:http://localhost:8082}
+  orders:
+    url: ${ORDERS_SERVICE_URL:http://localhost:8083}
+  notifications:
+    url: ${NOTIFICATIONS_SERVICE_URL:http://localhost:8084}

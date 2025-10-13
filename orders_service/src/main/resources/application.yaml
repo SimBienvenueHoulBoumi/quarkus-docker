@@ -1,0 +1,64 @@
+quarkus:
+  http:
+    port: ${HTTP_PORT:8083}
+  
+  datasource:
+    db-kind: postgresql
+    username: ${DB_USER:appuser}
+    password: ${DB_PASSWORD:apppassword}
+    jdbc:
+      url: ${DB_JDBC_URL:jdbc:postgresql://localhost:5432/appdb}
+  
+  hibernate-orm:
+    database:
+      generation: update
+    jdbc:
+      statement-batch-size: 20
+  
+  log:
+    category:
+      "org.hibernate.SQL":
+        level: INFO
+  
+  smallrye-openapi:
+    path: /q/openapi
+  
+  swagger-ui:
+    always-include: true
+    path: /q/swagger-ui
+
+# JWT Configuration
+mp:
+  jwt:
+    verify:
+      algorithm: HS256
+      publickey: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes}
+      issuer: ${JWT_ISSUER:users-service}
+
+# Kafka Configuration
+mp.messaging:
+  outgoing:
+    order-events:
+      connector: smallrye-kafka
+      topic: order.events
+      value.serializer: org.apache.kafka.common.serialization.StringSerializer
+      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      max.request.size: 10485760
+  
+  incoming:
+    article-events-in:
+      connector: smallrye-kafka
+      topic: article.events
+      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      group.id: orders-service-group
+      auto.offset.reset: earliest
+      fetch.max.bytes: 10485760
+
+kafka:
+  bootstrap:
+    servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+# REST Client for Articles Service
+articles-service/mp-rest/url: ${ARTICLES_SERVICE_URL:http://localhost:8082}
+articles-service/mp-rest/scope: jakarta.inject.Singleton
