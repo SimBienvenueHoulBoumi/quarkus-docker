@@ -3,9 +3,15 @@ quarkus:
     name: api-gateway
   http:
     port: ${HTTP_PORT:9000}
-    cors: true
-  
-  # Swagger UI Configuration
+    cors:
+      enabled: true
+      origins: ${CORS_ORIGINS:*}
+      exposed-headers: Authorization,Content-Type
+      methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+      headers: Authorization,Content-Type,Accept,Origin,User-Agent
+    proxy:
+      proxy-address-forwarding: true
+
   swagger-ui:
     always-include: true
     path: /q/swagger-ui
@@ -15,28 +21,33 @@ quarkus:
       orders: /openapi/orders
       notifications: /openapi/notifications
     urls-primary-name: users
-  
+
   smallrye-openapi:
     path: /q/openapi
-    info-title: E-Commerce Microservices API Gateway
-    info-version: 1.0.0
-    info-description: Unified API Gateway for all microservices
+    info:
+      title: E-Commerce Microservices API Gateway
+      version: 1.0.0
+      description: Unified API Gateway for all microservices
 
-# JWT Configuration
-mp:
-  jwt:
-    verify:
-      publickey: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes}
-      algorithm: HS256
-      issuer: ${JWT_ISSUER:users-service}
-
-# Microservices URLs
 services:
   users:
     url: ${USERS_SERVICE_URL:http://localhost:8081}
+    openapi-path: ${USERS_OPENAPI_PATH:/openapi/users}
   articles:
     url: ${ARTICLES_SERVICE_URL:http://localhost:8082}
+    openapi-path: ${ARTICLES_OPENAPI_PATH:/openapi/articles}
   orders:
     url: ${ORDERS_SERVICE_URL:http://localhost:8083}
+    openapi-path: ${ORDERS_OPENAPI_PATH:/openapi/orders}
   notifications:
     url: ${NOTIFICATIONS_SERVICE_URL:http://localhost:8084}
+    openapi-path: ${NOTIFICATIONS_OPENAPI_PATH:/openapi/notifications}
+
+smallrye:
+  jwt:
+    verify:
+      algorithm: HS256
+      key: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes-minimum-length}
+      issuer: ${JWT_ISSUER:users-service}
+
+# mp.jwt.verify.publickey.location not needed for HS256 symmetric key algorithm

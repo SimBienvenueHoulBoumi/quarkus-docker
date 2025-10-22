@@ -2,7 +2,6 @@ package org.acme.gateway;
 
 import io.vertx.core.Vertx;
 import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.WebClientOptions;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -11,7 +10,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -21,47 +19,59 @@ public class OpenApiAggregatorResource {
     @Inject
     Vertx vertx;
 
-    @ConfigProperty(name = "services.users.url")
+    @ConfigProperty(name = "services.users.url", defaultValue = "http://localhost:8081")
     String usersServiceUrl;
 
-    @ConfigProperty(name = "services.articles.url")
+    @ConfigProperty(name = "services.users.openapi-path", defaultValue = "/openapi/users")
+    String usersOpenApiPath;
+
+    @ConfigProperty(name = "services.articles.url", defaultValue = "http://localhost:8082")
     String articlesServiceUrl;
 
-    @ConfigProperty(name = "services.orders.url")
+    @ConfigProperty(name = "services.articles.openapi-path", defaultValue = "/openapi/articles")
+    String articlesOpenApiPath;
+
+    @ConfigProperty(name = "services.orders.url", defaultValue = "http://localhost:8083")
     String ordersServiceUrl;
 
-    @ConfigProperty(name = "services.notifications.url")
+    @ConfigProperty(name = "services.orders.openapi-path", defaultValue = "/openapi/orders")
+    String ordersOpenApiPath;
+
+    @ConfigProperty(name = "services.notifications.url", defaultValue = "http://localhost:8084")
     String notificationsServiceUrl;
+
+    @ConfigProperty(name = "services.notifications.openapi-path", defaultValue = "/openapi/notifications")
+    String notificationsOpenApiPath;
 
     @GET
     @Path("/users")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getUsersOpenApi() {
-        return fetchOpenApi(usersServiceUrl);
+        return fetchOpenApi(usersServiceUrl, usersOpenApiPath);
     }
 
     @GET
     @Path("/articles")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getArticlesOpenApi() {
-        return fetchOpenApi(articlesServiceUrl);
+        return fetchOpenApi(articlesServiceUrl, articlesOpenApiPath);
     }
 
     @GET
     @Path("/orders")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getOrdersOpenApi() {
-        return fetchOpenApi(ordersServiceUrl);
+        return fetchOpenApi(ordersServiceUrl, ordersOpenApiPath);
     }
 
     @GET
     @Path("/notifications")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getNotificationsOpenApi() {
-        return fetchOpenApi(notificationsServiceUrl);
+        return fetchOpenApi(notificationsServiceUrl, notificationsOpenApiPath);
     }
 
-    private Response fetchOpenApi(String serviceUrl) {
+    private Response fetchOpenApi(String serviceUrl, String openApiPath) {
         try {
             // Manual URL parsing to handle underscores in hostnames (Docker service names)
             String cleanUrl = serviceUrl.trim();
@@ -84,9 +94,12 @@ public class OpenApiAggregatorResource {
                 host = urlWithoutProtocol.replaceAll("/.*$", ""); // Remove any path
                 port = 80;
             }
-            
-            String path = "/q/openapi";
-            
+
+            String path = (openApiPath == null || openApiPath.isBlank()) ? "/openapi" : openApiPath.trim();
+            if (!path.startsWith("/")) {
+                path = "/" + path;
+            }
+
             if (host == null || host.isEmpty()) {
                 throw new IllegalArgumentException("Invalid service URL: " + serviceUrl);
             }
@@ -98,6 +111,7 @@ public class OpenApiAggregatorResource {
             CompletableFuture<String> future = new CompletableFuture<>();
             
             client.get(port, host, path)
+                    .putHeader("Accept", MediaType.APPLICATION_JSON)
                     .send()
                     .onSuccess(response -> {
                         if (response.statusCode() == 200) {

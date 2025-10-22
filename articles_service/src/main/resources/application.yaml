@@ -1,4 +1,7 @@
 quarkus:
+  arc:
+    selected-alternatives:
+      - org.acme.articles.config.JwtAuthContextProducer
   http:
     port: ${HTTP_PORT:8082}
   
@@ -19,21 +22,21 @@ quarkus:
     category:
       "org.hibernate.SQL":
         level: INFO
+      "io.smallrye.jwt":
+        level: TRACE
   
   smallrye-openapi:
-    path: /q/openapi
-  
+    path: ${OPENAPI_PATH:/openapi/articles}
+
   swagger-ui:
     always-include: true
-    path: /q/swagger-ui
+    path: ${SWAGGER_PATH:/swagger/articles}
 
 # JWT Configuration
-mp:
-  jwt:
-    verify:
-      algorithm: HS256
-      publickey: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes}
-      issuer: ${JWT_ISSUER:users-service}
+jwt:
+  issuer: ${JWT_ISSUER:users-service}
+  algorithm: ${JWT_ALGORITHM:HS256}
+  secret: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes-minimum-length}
 
 # Kafka Configuration
 mp.messaging:
@@ -41,9 +44,22 @@ mp.messaging:
     article-events:
       connector: smallrye-kafka
       topic: article.events
+      # Sérialisation
+      key.serializer: org.apache.kafka.common.serialization.StringSerializer
       value.serializer: org.apache.kafka.common.serialization.StringSerializer
-      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      # Taille des messages
       max.request.size: 10485760
+      # Garanties de livraison
+      acks: all
+      retries: 3
+      # Performance
+      compression.type: snappy
+      batch.size: 16384
+      linger.ms: 10
+      # Idempotence (éviter les doublons)
+      enable.idempotence: true
+      # Connexion
+      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 kafka:
   bootstrap:

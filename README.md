@@ -1,303 +1,405 @@
-# E-Commerce Microservices Platform
+# 🚀 E-Commerce Microservices - Kafka Quarkus
 
-Architecture de microservices basée sur Quarkus, Kafka et PostgreSQL pour une plateforme e-commerce.
+Architecture microservices avec **Quarkus**, **Kafka** et **PostgreSQL**.
+
+---
+
+## 📋 Table des Matières
+
+1. [Architecture](#-architecture)
+2. [Démarrage Rapide](#-démarrage-rapide)
+3. [URLs d'Accès](#-urls-daccès)
+4. [API Endpoints](#-api-endpoints)
+5. [Authentification JWT](#-authentification-jwt)
+6. [Exemples d'Utilisation](#-exemples-dutilisation)
+7. [Troubleshooting](#-troubleshooting)
+
+---
 
 ## 🏗️ Architecture
 
-### Services
-
-1. **users_service** (Port 8081)
-   - Gestion des utilisateurs et authentification
-   - Génération de tokens JWT
-   - Rôles: USER, ADMIN
-
-2. **taskmanager** (Port 8080)
-   - Service de gestion des tâches (service existant)
-   - Utilise Kafka pour communiquer avec users_service
-
-3. **articles_service** (Port 8082)
-   - Catalogue de produits
-   - Gestion du stock
-   - CRUD admin pour les articles
-   - Publication d'événements Kafka (création, mise à jour, changement de stock)
-
-4. **orders_service** (Port 8083)
-   - Gestion des commandes
-   - Relation 1->N avec les articles
-   - Vérification du stock via REST client
-   - Publication d'événements Kafka (création, confirmation, expédition, livraison, annulation)
-
-5. **notifications_service** (Port 8084)
-   - Service de notifications événementiel
-   - Consomme les événements Kafka des autres services
-   - Notifications pour les utilisateurs et admins
-
-### Infrastructure
-
-- **Kafka** (Port 9092): Message broker pour la communication asynchrone
-- **PostgreSQL** (Port 5432): Base de données partagée avec séparation par schémas
-
-## 🚀 Démarrage
-
-### Prérequis
-
-- Docker et Docker Compose
-- Java 17+
-- Maven 3.8+
-
-### Build des services
-
-```bash
-# Build articles_service
-cd articles_service && ./mvnw clean package -DskipTests && cd ..
-
-# Build orders_service
-cd orders_service && ./mvnw clean package -DskipTests && cd ..
-
-# Build notifications_service
-cd notifications_service && ./mvnw clean package -DskipTests && cd ..
+```
+Client → API Gateway (9000) → Users (8081)
+                            → Articles (8082)
+                            → Orders (8083)
+                            → Notifications (8084)
+                            ↓
+                    PostgreSQL (5432) + Kafka (9092-9094)
 ```
 
-### Lancement avec Docker Compose
+**Stack:**
+- Backend: Quarkus 3.x (Java 17+)
+- Message Broker: Kafka 3.9.1 (3 brokers)
+- Database: PostgreSQL 15
+- Container: Docker Compose
+
+---
+
+## 🚀 Démarrage Rapide
 
 ```bash
-# Démarrer tous les services
+# Démarrer
 sudo docker compose up -d
 
-# Vérifier l'état des services
+# Vérifier
 sudo docker compose ps
 
-# Voir les logs
-sudo docker compose logs -f [service_name]
+# Logs
+sudo docker compose logs -f
 
-# Arrêter tous les services
+# Arrêter
 sudo docker compose down
 ```
 
-## 📚 API Documentation (Swagger UI)
+---
 
-### 🌟 Interface Unifiée (Recommandé)
+## 🌐 URLs d'Accès
 
-**API Gateway - Toutes les APIs en un seul endroit:**
-- **URL:** http://localhost:9000/q/swagger-ui
-- **Description:** Interface Swagger centralisée avec menu déroulant pour accéder à tous les services
-- **Services disponibles:**
-  - Users Service
-  - Taskmanager
-  - Articles Service
-  - Orders Service
-  - Notifications Service
+### Depuis la VM (192.168.64.33)
 
-### 📋 Interfaces Individuelles
+| Service | Swagger UI | OpenAPI |
+|---------|-----------|---------|
+| **API Gateway** | http://192.168.64.33:9000/q/swagger-ui | http://192.168.64.33:9000/q/openapi |
+| **Users** | http://192.168.64.33:8081/swagger/users | http://192.168.64.33/openapi/users |
+| **Articles** | http://192.168.64.33:8082/swagger/articles | http://192.168.64.33/openapi/articles |
+| **Orders** | http://192.168.64.33:8083/swagger/orders | http://192.168.64.33/openapi/orders |
+| **Notifications** | http://192.168.64.33:8084/swagger/notifications | http://192.168.64.33/openapi/notifications |
 
-Si vous préférez accéder directement aux Swagger UI de chaque service:
-
-- **users_service**: http://localhost:8081/q/swagger-ui
-- **taskmanager**: http://localhost:8080/q/swagger-ui
-- **articles_service**: http://localhost:8082/q/swagger-ui
-- **orders_service**: http://localhost:8083/q/swagger-ui
-- **notifications_service**: http://localhost:8084/q/swagger-ui
-
-### 🔗 Endpoints OpenAPI (JSON)
-
-Pour intégration avec d'autres outils (Postman, Insomnia, etc.):
-
-- **API Gateway (agrégé):**
-  - Users: http://localhost:9000/openapi/users
-  - Taskmanager: http://localhost:9000/openapi/taskmanager
-  - Articles: http://localhost:9000/openapi/articles
-  - Orders: http://localhost:9000/openapi/orders
-  - Notifications: http://localhost:9000/openapi/notifications
-
-- **Services individuels:**
-  - Users: http://localhost:8081/q/openapi
-  - Taskmanager: http://localhost:8080/q/openapi
-  - Articles: http://localhost:8082/q/openapi
-  - Orders: http://localhost:8083/q/openapi
-  - Notifications: http://localhost:8084/q/openapi
-
-## 🔐 Authentification
-
-### Obtenir un token JWT
+### Depuis Machine Locale (Tunnel SSH)
 
 ```bash
-# Créer un utilisateur
-curl -X POST http://localhost:8081/api/users/register \
+# Créer le tunnel
+ssh -L 9000:localhost:9000 -L 8081:localhost:8081 -L 8082:localhost:8082 -L 8083:localhost:8083 -L 8084:localhost:8084 k8s@192.168.64.33
+```
+
+Puis accéder via:
+- API Gateway: http://localhost:9000/q/swagger-ui
+- Users: http://localhost:8081/swagger/users
+- Articles: http://localhost:8082/swagger/articles
+- Orders: http://localhost:8083/swagger/orders
+- Notifications: http://localhost:8084/swagger/notifications
+
+---
+
+## 📡 API Endpoints
+
+### Users Service (8081)
+
+| Méthode | Endpoint | Description | Auth |
+|---------|----------|-------------|------|
+| POST | `/api/users/register` | Créer compte | Non |
+| POST | `/api/auth/login` | Connexion | Non |
+| GET | `/api/users/me` | Mon profil | JWT |
+| PUT | `/api/users/me` | Modifier profil | JWT |
+| GET | `/api/users` | Liste users | ADMIN |
+
+### Articles Service (8082)
+
+| Méthode | Endpoint | Description | Auth |
+|---------|----------|-------------|------|
+| GET | `/api/articles` | Liste articles | Non |
+| GET | `/api/articles/{id}` | Détails article | Non |
+| POST | `/api/articles` | Créer article | ADMIN |
+| PUT | `/api/articles/{id}` | Modifier article | ADMIN |
+| PATCH | `/api/articles/{id}/stock` | Maj stock | ADMIN |
+| DELETE | `/api/articles/{id}` | Supprimer | ADMIN |
+
+### Orders Service (8083)
+
+| Méthode | Endpoint | Description | Auth |
+|---------|----------|-------------|------|
+| GET | `/api/orders` | Mes commandes | JWT |
+| GET | `/api/orders/{id}` | Détails commande | JWT |
+| POST | `/api/orders` | Créer commande | JWT |
+| PATCH | `/api/orders/{id}/status` | Changer statut | ADMIN |
+
+**Statuts:** PENDING → CONFIRMED → SHIPPED → DELIVERED (ou CANCELLED)
+
+### Notifications Service (8084)
+
+| Méthode | Endpoint | Description | Auth |
+|---------|----------|-------------|------|
+| GET | `/api/notifications` | Mes notifications | JWT |
+| GET | `/api/notifications/unread` | Non lues | JWT |
+| GET | `/api/notifications/unread/count` | Nombre non lues | JWT |
+| PATCH | `/api/notifications/{id}/read` | Marquer lue | JWT |
+
+---
+
+## 🔐 Authentification JWT
+
+### 1. Créer un Compte
+
+```bash
+curl -X POST http://192.168.64.33:8081/api/users/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "john",
     "email": "john@example.com",
-    "password": "password123",
+    "password": "Password123!",
     "role": "USER"
   }'
+```
 
-# Se connecter
-curl -X POST http://localhost:8081/api/users/login \
+### 2. Se Connecter
+
+```bash
+curl -X POST http://192.168.64.33:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "john",
-    "password": "password123"
+    "identifier": "john",
+    "password": "Password123!"
   }'
 ```
 
-### Utiliser le token
-
-```bash
-# Exemple avec Authorization header
-curl -X GET http://localhost:8082/api/articles \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+**Réponse:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 1800
+}
 ```
 
-## 📊 Flux de données
-
-### Événements Kafka
-
-#### Topics
-
-1. **article.events**
-   - Producteur: articles_service
-   - Consommateurs: notifications_service
-   - Événements: ARTICLE_CREATED, ARTICLE_UPDATED, STOCK_CHANGED
-
-2. **order.events**
-   - Producteur: orders_service
-   - Consommateurs: notifications_service
-   - Événements: ORDER_CREATED, ORDER_CONFIRMED, ORDER_SHIPPED, ORDER_DELIVERED, ORDER_CANCELLED
-
-### Communication REST
-
-- **orders_service → articles_service**: Vérification du stock et récupération des détails des articles
-
-## 🎯 Cas d'usage
-
-### 1. Créer un article (Admin)
+### 3. Utiliser le Token
 
 ```bash
-curl -X POST http://localhost:8082/api/articles \
-  -H "Authorization: Bearer ADMIN_TOKEN" \
+curl -X GET http://192.168.64.33:8082/api/articles \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Rôles:**
+- **USER**: Créer commandes, voir notifications
+- **ADMIN**: Gérer articles, voir toutes commandes
+
+---
+
+## 💡 Exemples d'Utilisation
+
+### Scénario Complet
+
+```bash
+# 1. Créer compte USER
+curl -X POST http://192.168.64.33:8081/api/users/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Laptop Dell XPS 15",
-    "description": "Powerful laptop for developers",
-    "price": 1299.99,
-    "stock": 50
-  }'
-```
+  -d '{"username":"alice","email":"alice@example.com","password":"Alice123!","role":"USER"}'
 
-### 2. Passer une commande (User)
-
-```bash
-curl -X POST http://localhost:8083/api/orders \
-  -H "Authorization: Bearer USER_TOKEN" \
+# 2. Se connecter
+TOKEN=$(curl -s -X POST http://192.168.64.33:8081/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "items": [
-      {
-        "articleId": 1,
-        "quantity": 2
-      }
-    ]
-  }'
+  -d '{"identifier":"alice","password":"Alice123!"}' | jq -r '.token')
+
+# 3. Créer compte ADMIN
+curl -X POST http://192.168.64.33:8081/api/users/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","email":"admin@example.com","password":"Admin123!","role":"ADMIN"}'
+
+# 4. Se connecter ADMIN
+ADMIN_TOKEN=$(curl -s -X POST http://192.168.64.33:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"identifier":"admin","password":"Admin123!"}' | jq -r '.token')
+
+# 5. Créer article
+curl -X POST http://192.168.64.33:8082/api/articles \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Laptop Dell XPS 15","description":"Haute performance","price":1299.99,"stock":10}'
+
+# 6. Voir articles
+curl http://192.168.64.33:8082/api/articles
+
+# 7. Créer commande
+curl -X POST http://192.168.64.33:8083/api/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"articleId":1,"quantity":2}]}'
+
+# 8. Voir mes commandes
+curl http://192.168.64.33:8083/api/orders \
+  -H "Authorization: Bearer $TOKEN"
+
+# 9. Voir notifications
+curl http://192.168.64.33:8084/api/notifications \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-### 3. Consulter les notifications (User)
+---
+
+## 🔧 Troubleshooting
+
+### Port 9092 déjà utilisé
 
 ```bash
-# Toutes les notifications
-curl -X GET http://localhost:8084/api/notifications \
-  -H "Authorization: Bearer USER_TOKEN"
+# Identifier le processus
+sudo lsof -i :9092
 
-# Notifications non lues
-curl -X GET http://localhost:8084/api/notifications/unread \
-  -H "Authorization: Bearer USER_TOKEN"
+# Arrêter tout
+sudo docker compose down
 
-# Nombre de notifications non lues
-curl -X GET http://localhost:8084/api/notifications/unread/count \
-  -H "Authorization: Bearer USER_TOKEN"
+# Supprimer conteneurs orphelins
+sudo docker compose up -d --remove-orphans
 ```
 
-## 🗄️ Base de données
-
-### Structure
-
-Tous les services utilisent la même base PostgreSQL (`appdb`) mais avec des tables séparées:
-
-- **users_service**: table `users`
-- **articles_service**: table `articles`
-- **orders_service**: tables `orders`, `order_items`
-- **notifications_service**: table `notifications`
-
-### Configuration
-
-```yaml
-Database: appdb
-User: appuser
-Password: apppassword
-Host: postgres (dans Docker) / localhost (en local)
-Port: 5432
-```
-
-## 🔧 Configuration
-
-### Variables d'environnement
-
-Chaque service peut être configuré via des variables d'environnement:
+### Services ne démarrent pas
 
 ```bash
-HTTP_PORT=8082
-DB_JDBC_URL=jdbc:postgresql://postgres:5432/appdb
-DB_USER=appuser
-DB_PASSWORD=apppassword
-JWT_SECRET=super-secret-change-me-please-change-me-32-bytes
-JWT_ISSUER=users-service
-KAFKA_BOOTSTRAP_SERVERS=kafka:19092
+# Vérifier logs
+sudo docker compose logs service_name
+
+# Vérifier PostgreSQL
+sudo docker compose ps postgres  # Doit être "healthy"
+
+# Redémarrer
+sudo docker compose restart service_name
 ```
 
-## 📈 Monitoring
-
-### Vérifier la santé des services
+### Swagger UI ne charge pas
 
 ```bash
-# Kafka topics
+# Tester OpenAPI
+curl http://192.168.64.33/openapi/users
+
+# Redémarrer API Gateway
+docker compose down -v --remove-orphans
+docker compose rm -fsv   # optionnel, si tu veux vraiment tout forcer
+docker volume prune      # seulement si tu veux aussi nettoyer d’autres volumes inutilisés
+
+docker image rm kafka_quarkus-api_gateway \
+                kafka_quarkus-users_service \
+                kafka_quarkus-articles_service \
+                kafka_quarkus-orders_service \
+                kafka_quarkus-notifications_service
+
+docker compose up -d --build
+
+```
+
+### Token JWT invalide
+
+```bash
+# Obtenir nouveau token (expire après 30 min)
+curl -X POST http://192.168.64.33:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"identifier":"testuser","password":"Test1234!"}'
+```
+
+### Accès depuis machine locale bloqué
+
+**Solution 1: Tunnel SSH (Recommandé)**
+```bash
+ssh -L 9000:localhost:9000 -L 8081:localhost:8081 -L 8082:localhost:8082 -L 8083:localhost:8083 -L 8084:localhost:8084 k8s@192.168.64.33
+```
+
+**Solution 2: Pare-feu**
+```bash
+sudo ufw allow 9000/tcp
+sudo ufw allow 8081:8084/tcp
+```
+
+**Solution 3: Mode Bridge VM**
+```bash
+multipass stop master3
+multipass set local.master3.network=bridge
+multipass start master3
+```
+
+---
+
+## 📊 Configuration
+
+### Ports
+
+| Service | Port | Description |
+|---------|------|-------------|
+| API Gateway | 9000 | Point d'entrée |
+| Users | 8081 | Authentification |
+| Articles | 8082 | Catalogue |
+| Orders | 8083 | Commandes |
+| Notifications | 8084 | Notifications |
+| Kafka-1 | 9092 | Broker 1 |
+| Kafka-2 | 9093 | Broker 2 |
+| Kafka-3 | 9094 | Broker 3 |
+| PostgreSQL | 5432 | Database |
+
+### Base de Données
+
+```bash
+# Connexion
+sudo docker exec -it postgres psql -U appuser -d appdb
+
+# Tables
+\dt  # Liste tables
+SELECT * FROM users;
+SELECT * FROM articles;
+SELECT * FROM orders;
+SELECT * FROM notifications;
+```
+
+### Kafka Topics
+
+```bash
+# Liste topics
 sudo docker exec -it kafka kafka-topics.sh --bootstrap-server localhost:9092 --list
 
-# PostgreSQL
-sudo docker exec -it postgres psql -U appuser -d appdb -c "\dt"
-
-# Logs des services
-sudo docker compose logs -f articles_service
-sudo docker compose logs -f orders_service
-sudo docker compose logs -f notifications_service
+# Consommer messages
+sudo docker exec -it kafka kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic article.events \
+  --from-beginning
 ```
 
-## 🛠️ Développement
+---
 
-### Mode développement (sans Docker)
+## ⚠️ Limitations Production
+
+**Non production-ready:**
+- ❌ Pas de circuit breaker
+- ❌ Secrets hardcodés
+- ❌ Pas de HTTPS/TLS
+- ❌ Single point of failure
+- ❌ Pas de monitoring
+- ❌ 0% tests
+
+**Pour production:**
+- Resilience4j (circuit breaker)
+- Secrets Manager (Vault)
+- Reverse proxy (Nginx + SSL)
+- Kubernetes (HA)
+- Prometheus + Grafana
+- Tests (80%+ coverage)
+
+---
+
+## 📞 Support
 
 ```bash
-# Terminal 1: Kafka
-sudo docker compose up kafka postgres -d
+# Logs
+sudo docker compose logs -f
+sudo docker compose logs -f service_name
+sudo docker compose logs --tail=100 kafka
 
-# Terminal 2: articles_service
-cd articles_service && ./mvnw quarkus:dev
+# Debug
+sudo docker exec -it service_name /bin/sh
+sudo docker inspect service_name
 
-# Terminal 3: orders_service
-cd orders_service && ./mvnw quarkus:dev
+# Nettoyage
+sudo docker system prune -a
+sudo docker volume prune
 
-# Terminal 4: notifications_service
-cd notifications_service && ./mvnw quarkus:dev
+# Swagger UI API Gateway: 
+http://192.168.64.33/q/swagger-ui/
+
+# OpenAPI Spec: 
+http://192.168.64.33/q/openapi
+
+# Dashboard Traefik:
+http://192.168.64.33:8080
+
+
+http://192.168.64.33:8081/swagger/users/#/
+
 ```
 
-## 📝 TODO
-
-- [ ] Ajouter des tests unitaires et d'intégration
-- [ ] Implémenter la gestion des stocks avec réservation
-- [ ] Ajouter un service de paiement
-- [ ] Implémenter WebSocket pour les notifications en temps réel
-- [ ] Ajouter un API Gateway (Kong, Traefik)
-- [ ] Implémenter le circuit breaker (Resilience4j)
-- [ ] Ajouter des métriques (Prometheus, Grafana)
-- [ ] Implémenter le tracing distribué (Jaeger)
+---
 
 ## 📄 License
 

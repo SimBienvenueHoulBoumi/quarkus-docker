@@ -1,4 +1,7 @@
 quarkus:
+  arc:
+    selected-alternatives:
+      - org.acme.users.config.JwtAuthContextProducer
   http:
     port: ${HTTP_PORT:8081}
   datasource:
@@ -11,29 +14,37 @@ quarkus:
     database:
       generation: update
   log:
+    min-level: DEBUG
     category:
       "org.hibernate.SQL":
         level: INFO
+      "io.smallrye.jwt":
+        min-level: TRACE
+        level: TRACE
+      "io.quarkus.smallrye.jwt.runtime":
+        min-level: TRACE
+        level: TRACE
   
   smallrye-openapi:
-    path: /q/openapi
-  
+    path: ${OPENAPI_PATH:/openapi/users}
+
   swagger-ui:
     always-include: true
-    path: /q/swagger-ui
-
-mp:
-  jwt:
-    verify:
-      algorithm: HS256
-      publickey: ${JWT_SECRET:change-me-please-change-me-32-bytes-secret}
-
-smallrye:
-  jwt:
-    sign:
-      key: ${JWT_SECRET:change-me-please-change-me-32-bytes-secret}
+    path: ${SWAGGER_PATH:/swagger/users}
 
 jwt:
   issuer: ${JWT_ISSUER:users-service}
   expiration:
-    minutes: ${JWT_EXPIRATION_MINUTES:15}
+    minutes: ${JWT_EXPIRATION_MINUTES:480}  # 8 heures (au lieu de 15 minutes)
+  secret: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes-minimum-length}
+  algorithm: ${JWT_ALGORITHM:HS256}
+
+smallrye:
+  jwt:
+    verify:
+      algorithm: ${JWT_ALGORITHM:HS256}
+      secret: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes-minimum-length}
+      issuer: ${JWT_ISSUER:users-service}
+    sign:
+      algorithm: ${JWT_ALGORITHM:HS256}
+      secret: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes-minimum-length}

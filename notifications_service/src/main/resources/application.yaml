@@ -1,4 +1,7 @@
 quarkus:
+  arc:
+    selected-alternatives:
+      - org.acme.notifications.config.JwtAuthContextProducer
   http:
     port: ${HTTP_PORT:8084}
   
@@ -19,40 +22,48 @@ quarkus:
         level: INFO
   
   smallrye-openapi:
-    path: /q/openapi
-  
+    path: ${OPENAPI_PATH:/openapi/notifications}
+
   swagger-ui:
     always-include: true
-    path: /q/swagger-ui
+    path: ${SWAGGER_PATH:/swagger/notifications}
 
 # JWT Configuration
-mp:
-  jwt:
-    verify:
-      algorithm: HS256
-      publickey: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes}
-      issuer: ${JWT_ISSUER:users-service}
+jwt:
+  issuer: ${JWT_ISSUER:users-service}
+  algorithm: ${JWT_ALGORITHM:HS256}
+  secret: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes-minimum-length}
 
 # Kafka Configuration - Listen to multiple topics
 mp.messaging:
   incoming:
-    order-events-in:
+    order-events:
       connector: smallrye-kafka
-      topic: order.events
+      topic: order-events
+      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-      group.id: notifications-service-group
+      group.id: notifications-service-orders-group
       auto.offset.reset: earliest
       fetch.max.bytes: 10485760
-    
-    article-events-in:
-      connector: smallrye-kafka
-      topic: article.events
-      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable.auto.commit: false
+      commit-strategy: throttled
+      failure-strategy: ignore
+      max.poll.records: 500
       bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-      group.id: notifications-service-group
+
+    article-events:
+      connector: smallrye-kafka
+      topic: article-events
+      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      group.id: notifications-service-articles-group
       auto.offset.reset: earliest
       fetch.max.bytes: 10485760
+      enable.auto.commit: false
+      commit-strategy: throttled
+      failure-strategy: ignore
+      max.poll.records: 500
+      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 kafka:
   bootstrap:

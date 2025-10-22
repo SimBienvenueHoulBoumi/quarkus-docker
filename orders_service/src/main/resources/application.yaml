@@ -1,4 +1,7 @@
 quarkus:
+  arc:
+    selected-alternatives:
+      - org.acme.orders.config.JwtAuthContextProducer
   http:
     port: ${HTTP_PORT:8083}
   
@@ -21,39 +24,49 @@ quarkus:
         level: INFO
   
   smallrye-openapi:
-    path: /q/openapi
-  
+    path: ${OPENAPI_PATH:/openapi/orders}
+
   swagger-ui:
     always-include: true
-    path: /q/swagger-ui
+    path: ${SWAGGER_PATH:/swagger/orders}
 
 # JWT Configuration
-mp:
-  jwt:
-    verify:
-      algorithm: HS256
-      publickey: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes}
-      issuer: ${JWT_ISSUER:users-service}
+jwt:
+  issuer: ${JWT_ISSUER:users-service}
+  algorithm: ${JWT_ALGORITHM:HS256}
+  secret: ${JWT_SECRET:super-secret-change-me-please-change-me-32-bytes-minimum-length}
 
 # Kafka Configuration
 mp.messaging:
   outgoing:
     order-events:
       connector: smallrye-kafka
-      topic: order.events
+      topic: order-events
+      key.serializer: org.apache.kafka.common.serialization.StringSerializer
       value.serializer: org.apache.kafka.common.serialization.StringSerializer
-      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       max.request.size: 10485760
+      acks: all
+      retries: 3
+      compression.type: snappy
+      enable.idempotence: true
+      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   
   incoming:
-    article-events-in:
+    article-events:
       connector: smallrye-kafka
-      topic: article.events
+      topic: article-events
+      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       group.id: orders-service-group
       auto.offset.reset: earliest
       fetch.max.bytes: 10485760
+      enable.auto.commit: false
+      commit-strategy: throttled
+      failure-strategy: ignore
+      max.poll.records: 500
+      session.timeout.ms: 30000
+      heartbeat.interval.ms: 3000
+      bootstrap.servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 kafka:
   bootstrap:
