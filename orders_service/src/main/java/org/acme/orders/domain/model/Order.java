@@ -1,7 +1,10 @@
 package org.acme.orders.domain.model;
 
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -13,15 +16,17 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.validation.constraints.NotNull;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.acme.orders.application.exception.OrderApplicationException;
+import org.acme.orders.domain.event.OrderDomainEvent;
+import org.acme.orders.domain.exception.OrderDomainException;
+import org.acme.orders.domain.value.Money;
 
 @Entity
 @Table(name = "orders")
@@ -35,9 +40,11 @@ public class Order {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @NotNull(message = "Total amount is required")
-    @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
-    private BigDecimal totalAmount = BigDecimal.ZERO;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "total_amount", nullable = false, precision = 10, scale = 2))
+    })
+    private Money totalAmount = Money.zero();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -52,33 +59,39 @@ public class Order {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @PrePersist
-    void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-        if (status == null) {
-            status = OrderStatus.PENDING;
-        }
-        if (totalAmount == null) {
-            totalAmount = BigDecimal.ZERO;
-        }
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
+    @Transient
+    private final List<OrderDomainEvent> domainEvents = new ArrayList<>();
 
     public static Order create(Long userId) {
         Objects.requireNonNull(userId, "userId");
         Order order = new Order();
         order.userId = userId;
         order.status = OrderStatus.PENDING;
-        order.totalAmount = BigDecimal.ZERO;
-        order.createdAt = Instant.now();
-        order.updatedAt = order.createdAt;
+        order.totalAmount = Money.zero();
+        Instant now = Instant.now();
+        order.createdAt = now;
+        order.updatedAt = now;
         return order;
+    }
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            Instant now = Instant.now();
+            this.createdAt = now;
+            this.updatedAt = now;
+        }
+        if (status == null) {
+            status = OrderStatus.PENDING;
+        }
+        if (totalAmount == null) {
+            totalAmount = Money.zero();
+        }
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
     }
 
     public void addItem(OrderItem item) {
@@ -92,38 +105,54 @@ public class Order {
         ensureState(OrderStatus.PENDING, "Only pending orders can be confirmed");
         status = OrderStatus.CONFIRMED;
         updatedAt = Instant.now();
+        registerEvent(OrderDomainEvent.confirmed(this));
     }
 
     public void ship() {
         ensureState(OrderStatus.CONFIRMED, "Only confirmed orders can be shipped");
         status = OrderStatus.SHIPPED;
         updatedAt = Instant.now();
+        registerEvent(OrderDomainEvent.shipped(this));
     }
 
     public void deliver() {
         ensureState(OrderStatus.SHIPPED, "Only shipped orders can be delivered");
         status = OrderStatus.DELIVERED;
         updatedAt = Instant.now();
+        registerEvent(OrderDomainEvent.delivered(this));
     }
 
-    public void cancel() {
+    public void cancel(String reason) {
         if (status == OrderStatus.DELIVERED) {
-            throw new OrderApplicationException("A delivered order cannot be cancelled", 400);
+            throw new OrderDomainException("A delivered order cannot be cancelled");
         }
         status = OrderStatus.CANCELLED;
         updatedAt = Instant.now();
+        registerEvent(OrderDomainEvent.cancelled(this, reason));
     }
 
     private void ensureState(OrderStatus expected, String message) {
         if (status != expected) {
-            throw new OrderApplicationException(message, 400);
+            throw new OrderDomainException(message);
         }
     }
 
     public void recalculateTotal() {
         this.totalAmount = items.stream()
                 .map(OrderItem::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(Money.zero(), Money::add);
+    }
+
+    public void registerEvent(OrderDomainEvent event) {
+        if (event != null) {
+            domainEvents.add(event);
+        }
+    }
+
+    public List<OrderDomainEvent> pullDomainEvents() {
+        List<OrderDomainEvent> events = List.copyOf(domainEvents);
+        domainEvents.clear();
+        return events;
     }
 
     public Long getId() {
@@ -142,11 +171,11 @@ public class Order {
         this.userId = userId;
     }
 
-    public BigDecimal getTotalAmount() {
+    public Money getTotalAmount() {
         return totalAmount;
     }
 
-    public void setTotalAmount(BigDecimal totalAmount) {
+    public void setTotalAmount(Money totalAmount) {
         this.totalAmount = totalAmount;
     }
 

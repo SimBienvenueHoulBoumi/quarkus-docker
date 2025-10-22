@@ -110,15 +110,19 @@ register_account() {
     --arg username "$username" \
     --arg email "$email" \
     --arg password "$password" \
-    --arg role "$role" \
-    '{username:$username,email:$email,password:$password,role:$role}')
+    '{username:$username,email:$email,password:$password}')
+
+  local endpoint="${USERS_URL}/api/auth/register"
+  if [[ "$role" == "ADMIN" ]]; then
+    endpoint="${USERS_URL}/api/auth/register/admin"
+  fi
 
   local tmp status
   tmp=$(mktemp)
   status=$(run_curl -sS -o "$tmp" -w '%{http_code}' \
     -H "Content-Type: application/json" \
     -d "$payload" \
-    "${USERS_URL}/api/auth/register")
+    "${endpoint}")
 
   case "$status" in
     200|201)
@@ -139,17 +143,17 @@ register_account() {
 }
 
 login_account() {
-  local identifier=$1
+  local username=$1
   local password=$2
   local token_var=$3
 
-  log_step "Authenticate ${identifier}"
+  log_step "Authenticate ${username}"
 
   local payload
   payload=$(jq -n \
-    --arg identifier "$identifier" \
+    --arg username "$username" \
     --arg password "$password" \
-    '{identifier:$identifier,password:$password}')
+    '{username:$username,password:$password}')
 
   local response token
   response=$(run_curl -sS \
@@ -159,7 +163,7 @@ login_account() {
 
   token=$(echo "$response" | jq -r '.token // empty')
   if [[ -z "$token" ]]; then
-    echo "Failed to obtain token for ${identifier}" >&2
+    echo "Failed to obtain token for ${username}" >&2
     echo "$response" >&2
     exit 1
   fi

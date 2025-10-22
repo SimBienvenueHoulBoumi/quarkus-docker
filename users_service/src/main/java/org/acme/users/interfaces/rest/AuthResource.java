@@ -30,6 +30,12 @@ public class AuthResource {
     }
 
     @POST
+    @Path("/register/admin")
+    public AuthResponse registerAdmin(@Valid RegisterRequest request) {
+        return execute(() -> userService.registerAdmin(request));
+    }
+
+    @POST
     @Path("/login")
     public AuthResponse login(@Valid LoginRequest request) {
         return execute(() -> userService.login(request));

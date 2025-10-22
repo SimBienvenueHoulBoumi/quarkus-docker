@@ -1,6 +1,9 @@
 package org.acme.orders.domain.model;
 
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -15,8 +18,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-import java.math.BigDecimal;
 import java.util.Objects;
+
+import org.acme.orders.domain.value.Money;
 
 @Entity
 @Table(name = "order_items")
@@ -43,23 +47,27 @@ public class OrderItem {
     @Column(nullable = false)
     private Integer quantity;
 
-    @NotNull(message = "Unit price is required")
-    @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
-    private BigDecimal unitPrice;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "unit_price", nullable = false, precision = 10, scale = 2))
+    })
+    private Money unitPrice;
 
-    @NotNull(message = "Subtotal is required")
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal subtotal;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "subtotal", nullable = false, precision = 10, scale = 2))
+    })
+    private Money subtotal;
 
     @PrePersist
     @PreUpdate
     void calculateSubtotal() {
         if (unitPrice != null && quantity != null) {
-            this.subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+            this.subtotal = unitPrice.multiply(quantity);
         }
     }
 
-    public static OrderItem create(Long articleId, String articleName, BigDecimal unitPrice, int quantity) {
+    public static OrderItem create(Long articleId, String articleName, Money unitPrice, int quantity) {
         Objects.requireNonNull(articleId, "articleId");
         Objects.requireNonNull(articleName, "articleName");
         Objects.requireNonNull(unitPrice, "unitPrice");
@@ -71,11 +79,10 @@ public class OrderItem {
         item.articleName = articleName;
         item.unitPrice = unitPrice;
         item.quantity = quantity;
-        item.subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        item.subtotal = unitPrice.multiply(quantity);
         return item;
     }
 
-    // Getters and Setters
     public Long getId() {
         return id;
     }
@@ -116,19 +123,19 @@ public class OrderItem {
         this.quantity = quantity;
     }
 
-    public BigDecimal getUnitPrice() {
+    public Money getUnitPrice() {
         return unitPrice;
     }
 
-    public void setUnitPrice(BigDecimal unitPrice) {
+    public void setUnitPrice(Money unitPrice) {
         this.unitPrice = unitPrice;
     }
 
-    public BigDecimal getSubtotal() {
+    public Money getSubtotal() {
         return subtotal;
     }
 
-    public void setSubtotal(BigDecimal subtotal) {
+    public void setSubtotal(Money subtotal) {
         this.subtotal = subtotal;
     }
 }

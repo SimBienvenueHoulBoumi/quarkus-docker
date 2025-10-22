@@ -1,5 +1,6 @@
 package org.acme.users.domain.model;
 
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -7,9 +8,12 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+
+import org.acme.users.domain.value.Email;
 
 @Entity
 @Table(name = "users")
@@ -22,8 +26,8 @@ public class User {
     @Column(nullable = false, unique = true, length = 64)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 128)
-    private String email;
+    @Embedded
+    private Email email;
 
     @Column(name = "password_hash", nullable = false, length = 60)
     private String passwordHash;
@@ -34,6 +38,13 @@ public class User {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+    }
 
     public Long getId() {
         return id;
@@ -47,11 +58,11 @@ public class User {
         this.username = username;
     }
 
-    public String getEmail() {
+    public Email getEmail() {
         return email;
     }
 
-    public void setEmail(String email) {
+    public void setEmail(Email email) {
         this.email = email;
     }
 

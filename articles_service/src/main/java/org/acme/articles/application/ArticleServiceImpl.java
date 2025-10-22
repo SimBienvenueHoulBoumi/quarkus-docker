@@ -7,6 +7,7 @@ import org.acme.articles.application.exception.ArticleApplicationException;
 import org.acme.articles.application.port.out.ArticleEventPublisher;
 import org.acme.articles.domain.model.Article;
 import org.acme.articles.domain.repository.ArticleRepository;
+import org.acme.articles.domain.service.ArticleDomainService;
 import org.acme.articles.interfaces.rest.dto.ArticleRequest;
 import org.acme.articles.interfaces.rest.dto.ArticleResponse;
 import org.jboss.logging.Logger;
@@ -23,14 +24,17 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleRepository articleRepository;
     private final ArticleEventPublisher articleEventPublisher;
     private final ArticleMapper articleMapper;
+    private final ArticleDomainService articleDomainService;
 
     @Inject
     public ArticleServiceImpl(ArticleRepository articleRepository,
                               ArticleEventPublisher articleEventPublisher,
-                              ArticleMapper articleMapper) {
+                              ArticleMapper articleMapper,
+                              ArticleDomainService articleDomainService) {
         this.articleRepository = articleRepository;
         this.articleEventPublisher = articleEventPublisher;
         this.articleMapper = articleMapper;
+        this.articleDomainService = articleDomainService;
     }
 
     @Override
@@ -71,19 +75,24 @@ public class ArticleServiceImpl implements ArticleService {
             );
         }
 
-        Article article = Article.create(
-                request.getName(),
-                request.getDescription(),
-                request.getPrice(),
-                request.getStock(),
-                request.getCategory()
-        );
+        Article article;
+        try {
+            article = articleDomainService.create(
+                    request.getName(),
+                    request.getDescription(),
+                    request.getPrice(),
+                    request.getStock(),
+                    request.getCategory()
+            );
+        } catch (IllegalArgumentException ex) {
+            throw new ArticleApplicationException(ex.getMessage(), 400);
+        }
 
         articleRepository.persist(article);
         LOG.infof("Created article: %s (ID: %d)", article.getName(), article.getId());
 
         articleEventPublisher.publishArticleCreated(article.getId(), article.getName(), article.getStock());
-        if (isLowStock(article.getStock())) {
+        if (articleDomainService.isLowStock(article, LOW_STOCK_THRESHOLD)) {
             articleEventPublisher.publishStockLow(article.getId(), article.getName(), article.getStock());
         }
 
@@ -104,13 +113,18 @@ public class ArticleServiceImpl implements ArticleService {
         }
 
         int previousStock = article.getStock();
-        article.updateDetails(
-                request.getName(),
-                request.getDescription(),
-                request.getPrice(),
-                request.getStock(),
-                request.getCategory()
-        );
+        try {
+            articleDomainService.update(
+                    article,
+                    request.getName(),
+                    request.getDescription(),
+                    request.getPrice(),
+                    request.getStock(),
+                    request.getCategory()
+            );
+        } catch (IllegalArgumentException ex) {
+            throw new ArticleApplicationException(ex.getMessage(), 400);
+        }
 
         articleRepository.persist(article);
         LOG.infof("Updated article: %s (ID: %d)", article.getName(), article.getId());
@@ -128,7 +142,11 @@ public class ArticleServiceImpl implements ArticleService {
                 .orElseThrow(() -> new ArticleApplicationException("Article not found with id: " + id, 404));
 
         int previousStock = article.getStock();
-        article.changeStock(newStock);
+        try {
+            articleDomainService.changeStock(article, newStock);
+        } catch (IllegalArgumentException ex) {
+            throw new ArticleApplicationException(ex.getMessage(), 400);
+        }
 
         articleRepository.persist(article);
         LOG.infof("Updated stock for article %s (ID: %d): %d -> %d",
@@ -155,13 +173,9 @@ public class ArticleServiceImpl implements ArticleService {
         int newStock = article.getStock();
         if (previousStock != newStock) {
             articleEventPublisher.publishStockChanged(article.getId(), article.getName(), previousStock, newStock);
-            if (isLowStock(newStock) && previousStock > LOW_STOCK_THRESHOLD) {
+            if (articleDomainService.isLowStock(article, LOW_STOCK_THRESHOLD) && previousStock > LOW_STOCK_THRESHOLD) {
                 articleEventPublisher.publishStockLow(article.getId(), article.getName(), newStock);
             }
         }
-    }
-
-    private boolean isLowStock(int stock) {
-        return stock <= LOW_STOCK_THRESHOLD;
     }
 }

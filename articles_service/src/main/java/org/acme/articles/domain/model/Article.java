@@ -1,6 +1,9 @@
 package org.acme.articles.domain.model;
 
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -8,16 +11,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Objects;
 
-import org.acme.articles.application.exception.ArticleApplicationException;
+import org.acme.articles.domain.value.Money;
 
 @Entity
 @Table(name = "articles")
@@ -36,10 +38,11 @@ public class Article {
     @Column(length = 500)
     private String description;
 
-    @NotNull(message = "Price is required")
-    @DecimalMin(value = "0.01", message = "Price must be greater than 0")
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal price;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "price", nullable = false, precision = 10, scale = 2))
+    })
+    private Money price;
 
     @NotNull(message = "Stock is required")
     @Min(value = 0, message = "Stock cannot be negative")
@@ -56,11 +59,22 @@ public class Article {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    public static Article create(String name, String description, Money price, Integer stock, String category) {
+        Article article = new Article();
+        article.updateDetails(name, description, price, stock, category);
+        Instant now = Instant.now();
+        article.createdAt = now;
+        article.updatedAt = now;
+        return article;
+    }
+
     @PrePersist
     void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-        this.updatedAt = now;
+        if (createdAt == null) {
+            Instant now = Instant.now();
+            this.createdAt = now;
+            this.updatedAt = now;
+        }
     }
 
     @PreUpdate
@@ -68,25 +82,26 @@ public class Article {
         this.updatedAt = Instant.now();
     }
 
-    public static Article create(String name, String description, BigDecimal price, Integer stock, String category) {
-        Article article = new Article();
-        article.updateDetails(name, description, price, stock, category);
-        article.createdAt = Instant.now();
-        article.updatedAt = article.createdAt;
-        return article;
-    }
-
-    public void updateDetails(String name, String description, BigDecimal price, Integer stock, String category) {
+    public void updateDetails(String name, String description, Money price, Integer stock, String category) {
+        Objects.requireNonNull(price, "price");
+        Objects.requireNonNull(stock, "stock");
+        if (stock < 0) {
+            throw new IllegalArgumentException("Stock cannot be negative");
+        }
         this.name = name;
         this.description = description;
-        this.price = validatePrice(price);
-        this.stock = validateStock(stock);
+        this.price = price;
+        this.stock = stock;
         this.category = category;
         this.updatedAt = Instant.now();
     }
 
     public void changeStock(Integer newStock) {
-        this.stock = validateStock(newStock);
+        Objects.requireNonNull(newStock, "newStock");
+        if (newStock < 0) {
+            throw new IllegalArgumentException("Stock cannot be negative");
+        }
+        this.stock = newStock;
         this.updatedAt = Instant.now();
     }
 
@@ -94,21 +109,6 @@ public class Article {
         return stock != null && stock <= threshold;
     }
 
-    private BigDecimal validatePrice(BigDecimal value) {
-        if (value == null || value.compareTo(new BigDecimal("0.01")) < 0) {
-            throw new ArticleApplicationException("Price must be greater than 0", 400);
-        }
-        return value;
-    }
-
-    private int validateStock(Integer value) {
-        if (value == null || value < 0) {
-            throw new ArticleApplicationException("Stock cannot be negative", 400);
-        }
-        return value;
-    }
-
-    // Getters and Setters
     public Long getId() {
         return id;
     }
@@ -133,11 +133,11 @@ public class Article {
         this.description = description;
     }
 
-    public BigDecimal getPrice() {
+    public Money getPrice() {
         return price;
     }
 
-    public void setPrice(BigDecimal price) {
+    public void setPrice(Money price) {
         this.price = price;
     }
 

@@ -38,20 +38,20 @@ public class UserJpaRepository implements UserRepository {
 
     @Override
     public Optional<User> findByEmail(String email) {
-        return entityManager.createQuery("select u from User u where u.email = :email", User.class)
-                .setParameter("email", email)
+        return entityManager.createQuery("select u from User u where u.email.value = :email", User.class)
+                .setParameter("email", email.toLowerCase())
                 .getResultStream()
                 .findFirst();
     }
 
     @Override
-    public Optional<User> findByUsernameOrEmail(String identifier) {
-        String lowered = identifier.toLowerCase();
+    public Optional<User> findByUsernameOrEmail(String usernameOrEmail) {
+        String lowered = usernameOrEmail.toLowerCase();
         return entityManager.createQuery(
-                        "select u from User u where lower(u.email) = :email or u.username = :username",
+                        "select u from User u where lower(u.email.value) = :email or u.username = :username",
                         User.class)
                 .setParameter("email", lowered)
-                .setParameter("username", identifier)
+                .setParameter("username", usernameOrEmail)
                 .getResultStream()
                 .findFirst();
     }

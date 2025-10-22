@@ -12,7 +12,7 @@ public class ArticleMapper {
                 article.getId(),
                 article.getName(),
                 article.getDescription(),
-                article.getPrice(),
+                article.getPrice().toBigDecimal(),
                 article.getStock(),
                 article.getCategory(),
                 article.getCreatedAt(),

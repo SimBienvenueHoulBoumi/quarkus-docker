@@ -10,7 +10,6 @@ import org.acme.notifications.domain.repository.NotificationRepository;
 import org.acme.notifications.interfaces.rest.dto.NotificationResponse;
 import org.jboss.logging.Logger;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,7 +31,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void createOrderCreatedNotification(Long userId, Long orderId, String totalAmount, int itemCount) {
-        Notification notification = newNotification(
+        Notification notification = Notification.create(
                 userId,
                 NotificationType.ORDER_CREATED,
                 "Order Created",
@@ -47,7 +46,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void createOrderConfirmedNotification(Long userId, Long orderId) {
-        Notification notification = newNotification(
+        Notification notification = Notification.create(
                 userId,
                 NotificationType.ORDER_CONFIRMED,
                 "Order Confirmed",
@@ -61,7 +60,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void createOrderShippedNotification(Long userId, Long orderId) {
-        Notification notification = newNotification(
+        Notification notification = Notification.create(
                 userId,
                 NotificationType.ORDER_SHIPPED,
                 "Order Shipped",
@@ -75,7 +74,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void createOrderDeliveredNotification(Long userId, Long orderId) {
-        Notification notification = newNotification(
+        Notification notification = Notification.create(
                 userId,
                 NotificationType.ORDER_DELIVERED,
                 "Order Delivered",
@@ -89,7 +88,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void createOrderCancelledNotification(Long userId, Long orderId, String reason) {
-        Notification notification = newNotification(
+        Notification notification = Notification.create(
                 userId,
                 NotificationType.ORDER_CANCELLED,
                 "Order Cancelled",
@@ -103,7 +102,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void createLowStockNotification(Long articleId, String articleName, int currentStock) {
-        Notification notification = newNotification(
+        Notification notification = Notification.create(
                 1L,
                 NotificationType.STOCK_LOW,
                 "Low Stock Alert",
@@ -144,7 +143,7 @@ public class NotificationServiceImpl implements NotificationService {
             throw new NotificationApplicationException("Notification not found", 404);
         }
 
-        notification.setIsRead(true);
+        notification.markAsRead();
         return notificationMapper.toResponse(notification);
     }
 
@@ -152,19 +151,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void markAllAsRead(Long userId) {
         notificationRepository.findUnreadByUserId(userId)
-                .forEach(notification -> notification.setIsRead(true));
+                .forEach(Notification::markAsRead);
         LOG.infof("Marked unread notifications as read for user %d", userId);
-    }
-
-    private Notification newNotification(Long userId, NotificationType type, String title, String message, Long relatedId) {
-        Notification notification = new Notification();
-        notification.setUserId(userId);
-        notification.setType(type);
-        notification.setTitle(title);
-        notification.setMessage(message);
-        notification.setIsRead(false);
-        notification.setRelatedEntityId(relatedId);
-        notification.setCreatedAt(Instant.now());
-        return notification;
     }
 }

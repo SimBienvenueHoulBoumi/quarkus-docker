@@ -7,6 +7,7 @@ import org.acme.users.application.exception.UserApplicationException;
 import org.acme.users.domain.model.User;
 import org.acme.users.domain.model.UserRole;
 import org.acme.users.domain.repository.UserRepository;
+import org.acme.users.domain.value.Email;
 import org.acme.users.infrastructure.security.JwtService;
 import org.acme.users.infrastructure.security.JwtService.TokenWithExpiry;
 import org.acme.users.interfaces.rest.dto.AuthResponse;
@@ -14,7 +15,6 @@ import org.acme.users.interfaces.rest.dto.LoginRequest;
 import org.acme.users.interfaces.rest.dto.RegisterRequest;
 import org.acme.users.interfaces.rest.dto.UserResponse;
 
-import java.time.Instant;
 import org.mindrot.jbcrypt.BCrypt;
 
 @ApplicationScoped
@@ -36,20 +36,31 @@ public class UserServiceImpl implements UserService {
     @Transactional
     @Override
     public AuthResponse register(RegisterRequest request) {
+        return registerWithRole(request, UserRole.USER);
+    }
+
+    @Transactional
+    @Override
+    public AuthResponse registerAdmin(RegisterRequest request) {
+        return registerWithRole(request, UserRole.ADMIN);
+    }
+
+    private AuthResponse registerWithRole(RegisterRequest request, UserRole role) {
         userRepository.findByUsername(request.username()).ifPresent(existing -> {
             throw new UserApplicationException("username '%s' is already taken".formatted(request.username()), 409);
         });
 
-        userRepository.findByEmail(request.email().toLowerCase()).ifPresent(existing -> {
+        Email email = Email.of(request.email());
+
+        userRepository.findByEmail(email.getValue()).ifPresent(existing -> {
             throw new UserApplicationException("email '%s' is already registered".formatted(request.email()), 409);
         });
 
         User user = new User();
         user.setUsername(request.username());
-        user.setEmail(request.email().toLowerCase());
+        user.setEmail(email);
         user.setPasswordHash(hashPassword(request.password()));
-        user.setRole(UserRole.USER);
-        user.setCreatedAt(Instant.now());
+        user.setRole(role);
 
         userRepository.persist(user);
 
@@ -59,7 +70,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByUsernameOrEmail(request.identifier())
+        User user = userRepository.findByUsernameOrEmail(request.username())
                 .orElseThrow(() -> new UserApplicationException("invalid credentials", 401));
 
         if (!BCrypt.checkpw(request.password(), user.getPasswordHash())) {

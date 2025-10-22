@@ -20,7 +20,7 @@ public class OrderMapper {
         return new OrderResponse(
                 order.getId(),
                 order.getUserId(),
-                order.getTotalAmount(),
+                order.getTotalAmount().toBigDecimal(),
                 order.getStatus(),
                 items,
                 order.getCreatedAt(),
@@ -34,8 +34,8 @@ public class OrderMapper {
                 item.getArticleId(),
                 item.getArticleName(),
                 item.getQuantity(),
-                item.getUnitPrice(),
-                item.getSubtotal()
+                item.getUnitPrice().toBigDecimal(),
+                item.getSubtotal().toBigDecimal()
         );
     }
 }

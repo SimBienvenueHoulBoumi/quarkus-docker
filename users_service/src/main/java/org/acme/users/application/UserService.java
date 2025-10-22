@@ -9,6 +9,8 @@ public interface UserService {
 
     AuthResponse register(RegisterRequest request);
 
+    AuthResponse registerAdmin(RegisterRequest request);
+
     AuthResponse login(LoginRequest request);
 
     UserResponse findUserProfile(Long userId);

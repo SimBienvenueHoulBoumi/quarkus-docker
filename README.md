@@ -19,11 +19,11 @@ Architecture microservices avec **Quarkus**, **Kafka** et **PostgreSQL**.
 ## 🏗️ Architecture
 
 ```
-Client → API Gateway (9000) → Users (8081)
-                            → Articles (8082)
-                            → Orders (8083)
-                            → Notifications (8084)
-                            ↓
+Client → Traefik (80) → API Gateway (9000) → Users (8081)
+                                    → Articles (8082)
+                                    → Orders (8083)
+                                    → Notifications (8084)
+                                    ↓
                     PostgreSQL (5432) + Kafka (9092-9094)
 ```
 
@@ -31,15 +31,27 @@ Client → API Gateway (9000) → Users (8081)
 - Backend: Quarkus 3.x (Java 17+)
 - Message Broker: Kafka 3.9.1 (3 brokers)
 - Database: PostgreSQL 15
+- Reverse Proxy: Traefik 2.10
 - Container: Docker Compose
 
 ---
 
 ## 🚀 Démarrage Rapide
 
+**⚠️ Important:** Les services Quarkus doivent être construits avec Maven avant de démarrer Docker Compose.
+
+traefik joue le role de reverse proxy et loadBalancer 
+
 ```bash
-# Démarrer
-sudo docker compose up -d
+# 1. Construire les services Quarkus (OBLIGATOIRE)
+cd users_service && mvn clean package && cd ..
+cd articles_service && mvn clean package && cd ..
+cd orders_service && mvn clean package && cd ..
+cd notifications_service && mvn clean package && cd ..
+cd api-gateway && mvn clean package && cd ..
+
+# 2. Démarrer les conteneurs
+sudo docker compose up -d --build
 
 # Vérifier
 sudo docker compose ps
@@ -57,27 +69,25 @@ sudo docker compose down
 
 ### Depuis la VM (192.168.64.33)
 
-| Service | Swagger UI | OpenAPI |
-|---------|-----------|---------|
-| **API Gateway** | http://192.168.64.33:9000/q/swagger-ui | http://192.168.64.33:9000/q/openapi |
-| **Users** | http://192.168.64.33:8081/swagger/users | http://192.168.64.33/openapi/users |
-| **Articles** | http://192.168.64.33:8082/swagger/articles | http://192.168.64.33/openapi/articles |
-| **Orders** | http://192.168.64.33:8083/swagger/orders | http://192.168.64.33/openapi/orders |
-| **Notifications** | http://192.168.64.33:8084/swagger/notifications | http://192.168.64.33/openapi/notifications |
+| Service | URL | Swagger UI | OpenAPI |
+|---------|-----|-----------|---------|
+| **Traefik Dashboard** | http://192.168.64.33:8090/dashboard/#/ | - | - |
+| **API Gateway** | http://192.168.64.33 | http://192.168.64.33/q/swagger-ui | http://192.168.64.33/q/openapi |
+| **Users** | http://192.168.64.33/users | http://192.168.64.33:8081/swagger/users | http://192.168.64.33/openapi/users |
+| **Articles** | http://192.168.64.33/articles | http://192.168.64.33:8082/swagger/articles | http://192.168.64.33/openapi/articles |
+| **Orders** | http://192.168.64.33/orders | http://192.168.64.33:8083/swagger/orders | http://192.168.64.33/openapi/orders |
+| **Notifications** | http://192.168.64.33/notifications | http://192.168.64.33:8084/swagger/notifications | http://192.168.64.33/openapi/notifications |
 
 ### Depuis Machine Locale (Tunnel SSH)
 
 ```bash
-# Créer le tunnel
-ssh -L 9000:localhost:9000 -L 8081:localhost:8081 -L 8082:localhost:8082 -L 8083:localhost:8083 -L 8084:localhost:8084 k8s@192.168.64.33
+# Créer le tunnel (avec Traefik)
+ssh -L 80:localhost:80 -L 8090:localhost:8090 k8s@192.168.64.33
 ```
 
 Puis accéder via:
-- API Gateway: http://localhost:9000/q/swagger-ui
-- Users: http://localhost:8081/swagger/users
-- Articles: http://localhost:8082/swagger/articles
-- Orders: http://localhost:8083/swagger/orders
-- Notifications: http://localhost:8084/swagger/notifications
+- API Gateway: http://192.168.64.33/q/swagger-ui/
+- Traefik Dashboard: http://192.168.64.33:8090/dashboard/
 
 ---
 
@@ -87,11 +97,14 @@ Puis accéder via:
 
 | Méthode | Endpoint | Description | Auth |
 |---------|----------|-------------|------|
-| POST | `/api/users/register` | Créer compte | Non |
+| POST | `/api/auth/register` | Créer compte USER | Non |
+| POST | `/api/auth/register/admin` | Créer compte ADMIN | Non* |
 | POST | `/api/auth/login` | Connexion | Non |
 | GET | `/api/users/me` | Mon profil | JWT |
 | PUT | `/api/users/me` | Modifier profil | JWT |
 | GET | `/api/users` | Liste users | ADMIN |
+
+> \* Protégez cette route en production (ex. token administrateur provisoire ou scripts de migration) pour éviter la création d'administrateurs non autorisés.
 
 ### Articles Service (8082)
 
@@ -131,23 +144,22 @@ Puis accéder via:
 ### 1. Créer un Compte
 
 ```bash
-curl -X POST http://192.168.64.33:8081/api/users/register \
+curl -X POST http://192.168.64.33/users/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "john",
     "email": "john@example.com",
-    "password": "Password123!",
-    "role": "USER"
+    "password": "Password123!"
   }'
 ```
 
 ### 2. Se Connecter
 
 ```bash
-curl -X POST http://192.168.64.33:8081/api/auth/login \
+curl -X POST http://192.168.64.33/users/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "identifier": "john",
+    "username": "john",
     "password": "Password123!"
   }'
 ```
@@ -163,7 +175,7 @@ curl -X POST http://192.168.64.33:8081/api/auth/login \
 ### 3. Utiliser le Token
 
 ```bash
-curl -X GET http://192.168.64.33:8082/api/articles \
+curl -X GET http://192.168.64.33/articles/api/articles \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -179,46 +191,46 @@ curl -X GET http://192.168.64.33:8082/api/articles \
 
 ```bash
 # 1. Créer compte USER
-curl -X POST http://192.168.64.33:8081/api/users/register \
+curl -X POST http://192.168.64.33/users/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"alice","email":"alice@example.com","password":"Alice123!","role":"USER"}'
+  -d '{"username":"alice","email":"alice@example.com","password":"Alice123!"}'
 
 # 2. Se connecter
-TOKEN=$(curl -s -X POST http://192.168.64.33:8081/api/auth/login \
+TOKEN=$(curl -s -X POST http://192.168.64.33/users/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"alice","password":"Alice123!"}' | jq -r '.token')
+  -d '{"username":"alice","password":"Alice123!"}' | jq -r '.token')
 
 # 3. Créer compte ADMIN
-curl -X POST http://192.168.64.33:8081/api/users/register \
+curl -X POST http://192.168.64.33/users/api/auth/register/admin \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","email":"admin@example.com","password":"Admin123!","role":"ADMIN"}'
+  -d '{"username":"admin","email":"admin@example.com","password":"Admin123!"}'
 
 # 4. Se connecter ADMIN
-ADMIN_TOKEN=$(curl -s -X POST http://192.168.64.33:8081/api/auth/login \
+ADMIN_TOKEN=$(curl -s -X POST http://192.168.64.33/users/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"admin","password":"Admin123!"}' | jq -r '.token')
+  -d '{"username":"admin","password":"Admin123!"}' | jq -r '.token')
 
 # 5. Créer article
-curl -X POST http://192.168.64.33:8082/api/articles \
+curl -X POST http://192.168.64.33/articles/api/articles \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Laptop Dell XPS 15","description":"Haute performance","price":1299.99,"stock":10}'
 
 # 6. Voir articles
-curl http://192.168.64.33:8082/api/articles
+curl http://192.168.64.33/articles/api/articles
 
 # 7. Créer commande
-curl -X POST http://192.168.64.33:8083/api/orders \
+curl -X POST http://192.168.64.33/orders/api/orders \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"items":[{"articleId":1,"quantity":2}]}'
 
 # 8. Voir mes commandes
-curl http://192.168.64.33:8083/api/orders \
+curl http://192.168.64.33/orders/api/orders \
   -H "Authorization: Bearer $TOKEN"
 
 # 9. Voir notifications
-curl http://192.168.64.33:8084/api/notifications \
+curl http://192.168.64.33/notifications/api/notifications \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -229,7 +241,7 @@ curl http://192.168.64.33:8084/api/notifications \
 ### Port 9092 déjà utilisé
 
 ```bash
-# Identifier le processus
+# username le processus
 sudo lsof -i :9092
 
 # Arrêter tout
@@ -252,16 +264,45 @@ sudo docker compose ps postgres  # Doit être "healthy"
 sudo docker compose restart service_name
 ```
 
+### Erreur "target/quarkus-app/quarkus not found"
+
+**Cause:** Le build Maven n'a pas créé la structure de répertoires attendue pour le fast-jar Quarkus.
+
+**Solutions:**
+```bash
+# Vérifier que le build Maven a réussi
+cd orders_service  # ou autre service
+mvn clean package
+ls -la target/quarkus-app/
+
+# Si le répertoire n'existe pas, forcer le type de package
+mvn clean package -Dquarkus.package.type=fast-jar
+
+# Ou utiliser uber-jar (recommandé pour Docker)
+mvn clean package -Dquarkus.package.type=uber-jar
+
+# Vérifier la structure créée
+ls -la target/
+# Doit contenir: quarkus-app/ avec lib/, app/, quarkus/, *.jar
+
+# Nettoyer et reconstruire si nécessaire
+mvn clean
+mvn package -Dquarkus.package.type=uber-jar
+```
+
 ### Swagger UI ne charge pas
 
 ```bash
-# Tester OpenAPI
-curl http://192.168.64.33/openapi/users
+# Tester OpenAPI via Traefik
+curl http://192.168.64.33/q/openapi
 
 # Redémarrer API Gateway
 docker compose down -v --remove-orphans
 docker compose rm -fsv   # optionnel, si tu veux vraiment tout forcer
-docker volume prune      # seulement si tu veux aussi nettoyer d’autres volumes inutilisés
+docker volume prune      # seulement si tu veux aussi nettoyer d'autres volumes inutilisés
+
+docker system prune -a --volumes -f
+docker compose down -v --rmi all --remove-orphans
 
 docker image rm kafka_quarkus-api_gateway \
                 kafka_quarkus-users_service \
@@ -270,29 +311,28 @@ docker image rm kafka_quarkus-api_gateway \
                 kafka_quarkus-notifications_service
 
 docker compose up -d --build
-
 ```
 
 ### Token JWT invalide
 
 ```bash
 # Obtenir nouveau token (expire après 30 min)
-curl -X POST http://192.168.64.33:8081/api/auth/login \
+curl -X POST http://192.168.64.33/users/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"testuser","password":"Test1234!"}'
+  -d '{"username":"testuser","password":"Test1234!"}'
 ```
 
 ### Accès depuis machine locale bloqué
 
 **Solution 1: Tunnel SSH (Recommandé)**
 ```bash
-ssh -L 9000:localhost:9000 -L 8081:localhost:8081 -L 8082:localhost:8082 -L 8083:localhost:8083 -L 8084:localhost:8084 k8s@192.168.64.33
+ssh -L 80:localhost:80 -L 8090:localhost:8090 k8s@192.168.64.33
 ```
 
 **Solution 2: Pare-feu**
 ```bash
-sudo ufw allow 9000/tcp
-sudo ufw allow 8081:8084/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 8090/tcp
 ```
 
 **Solution 3: Mode Bridge VM**
@@ -310,6 +350,8 @@ multipass start master3
 
 | Service | Port | Description |
 |---------|------|-------------|
+| Traefik | 80 | Reverse Proxy |
+| Traefik Dashboard | 8090 | Interface d'administration |
 | API Gateway | 9000 | Point d'entrée |
 | Users | 8081 | Authentification |
 | Articles | 8082 | Catalogue |
@@ -385,21 +427,25 @@ sudo docker inspect service_name
 sudo docker system prune -a
 sudo docker volume prune
 
-# Swagger UI API Gateway: 
+# Swagger UI API Gateway:
 http://192.168.64.33/q/swagger-ui/
 
-# OpenAPI Spec: 
+# OpenAPI Spec:
 http://192.168.64.33/q/openapi
 
 # Dashboard Traefik:
-http://192.168.64.33:8080
+http://192.168.64.33:8090
 
-
-http://192.168.64.33:8081/swagger/users/#/
+# Services individuels:
+http://192.168.64.33:8081/swagger/users/
+http://192.168.64.33:8082/swagger/articles/
+http://192.168.64.33:8083/swagger/orders/
+http://192.168.64.33:8084/swagger/notifications/
 
 ```
 
 ---
+docker volume ls -q | xargs -r docker volume rm
 
 ## 📄 License
 
