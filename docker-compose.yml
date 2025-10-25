@@ -158,8 +158,10 @@ services:
   # Users Service
   users_service:
     build:
-      context: ./users_service
-      dockerfile: src/main/docker/Dockerfile.jvm
+      context: .
+      dockerfile: ./users_service/src/main/docker/Dockerfile.jvm
+      args:
+        SERVICE_MODULE: users_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -190,6 +192,8 @@ services:
       - "traefik.http.routers.users.rule=Host(`192.168.64.33`) && PathPrefix(`/users`)"
       - "traefik.http.routers.users.entrypoints=web"
       - "traefik.http.services.users.loadbalancer.server.port=8081"
+      - "traefik.http.middlewares.users-strip.stripprefix.prefixes=/users"
+      - "traefik.http.routers.users.middlewares=users-strip@docker"
     networks:
       kafka_network:
         aliases:
@@ -198,8 +202,10 @@ services:
   # Articles Service
   articles_service:
     build:
-      context: ./articles_service
-      dockerfile: src/main/docker/Dockerfile.jvm
+      context: .
+      dockerfile: ./articles_service/src/main/docker/Dockerfile.jvm
+      args:
+        SERVICE_MODULE: articles_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -224,6 +230,8 @@ services:
       - "traefik.http.routers.articles.rule=Host(`192.168.64.33`) && PathPrefix(`/articles`)"
       - "traefik.http.routers.articles.entrypoints=web"
       - "traefik.http.services.articles.loadbalancer.server.port=8082"
+      - "traefik.http.middlewares.articles-strip.stripprefix.prefixes=/articles"
+      - "traefik.http.routers.articles.middlewares=articles-strip@docker"
     networks:
       kafka_network:
         aliases:
@@ -232,8 +240,10 @@ services:
   # Orders Service
   orders_service:
     build:
-      context: ./orders_service
-      dockerfile: src/main/docker/Dockerfile.jvm
+      context: .
+      dockerfile: ./orders_service/src/main/docker/Dockerfile.jvm
+      args:
+        SERVICE_MODULE: orders_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -261,6 +271,8 @@ services:
       - "traefik.http.routers.orders.rule=Host(`192.168.64.33`) && PathPrefix(`/orders`)"
       - "traefik.http.routers.orders.entrypoints=web"
       - "traefik.http.services.orders.loadbalancer.server.port=8083"
+      - "traefik.http.middlewares.orders-strip.stripprefix.prefixes=/orders"
+      - "traefik.http.routers.orders.middlewares=orders-strip@docker"
     networks:
       kafka_network:
         aliases:
@@ -269,8 +281,10 @@ services:
   # Notifications Service
   notifications_service:
     build:
-      context: ./notifications_service
-      dockerfile: src/main/docker/Dockerfile.jvm
+      context: .
+      dockerfile: ./notifications_service/src/main/docker/Dockerfile.jvm
+      args:
+        SERVICE_MODULE: notifications_service
     depends_on:
       postgres:
         condition: service_healthy
@@ -295,6 +309,8 @@ services:
       - "traefik.http.routers.notifications.rule=Host(`192.168.64.33`) && PathPrefix(`/notifications`)"
       - "traefik.http.routers.notifications.entrypoints=web"
       - "traefik.http.services.notifications.loadbalancer.server.port=8084"
+      - "traefik.http.middlewares.notifications-strip.stripprefix.prefixes=/notifications"
+      - "traefik.http.routers.notifications.middlewares=notifications-strip@docker"
     networks:
       kafka_network:
         aliases:
@@ -303,8 +319,10 @@ services:
   # API Gateway
   api_gateway:
     build:
-      context: ./api-gateway
-      dockerfile: src/main/docker/Dockerfile.jvm
+      context: .
+      dockerfile: ./api-gateway/src/main/docker/Dockerfile.jvm
+      args:
+        SERVICE_MODULE: api-gateway
     depends_on:
       users_service:
         condition: service_started

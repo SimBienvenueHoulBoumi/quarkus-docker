@@ -2,7 +2,7 @@ package org.acme.users.application;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.users.domain.model.User;
-import org.acme.users.interfaces.rest.dto.UserResponse;
+import org.acme.users.application.dto.response.UserResponse;
 
 @ApplicationScoped
 public class UserMapper {

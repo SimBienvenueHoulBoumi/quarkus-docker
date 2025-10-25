@@ -6,6 +6,7 @@ import jakarta.persistence.PersistenceContext;
 import org.acme.users.domain.model.User;
 import org.acme.users.domain.repository.UserRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 @ApplicationScoped
@@ -54,5 +55,11 @@ public class UserJpaRepository implements UserRepository {
                 .setParameter("username", usernameOrEmail)
                 .getResultStream()
                 .findFirst();
+    }
+
+    @Override
+    public List<User> listAll() {
+        return entityManager.createQuery("select u from User u order by u.createdAt desc", User.class)
+                .getResultList();
     }
 }

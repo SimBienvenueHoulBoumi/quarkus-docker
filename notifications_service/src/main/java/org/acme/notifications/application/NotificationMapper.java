@@ -2,7 +2,7 @@ package org.acme.notifications.application;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.notifications.domain.model.Notification;
-import org.acme.notifications.interfaces.rest.dto.NotificationResponse;
+import org.acme.notifications.application.dto.response.NotificationResponse;
 
 @ApplicationScoped
 public class NotificationMapper {

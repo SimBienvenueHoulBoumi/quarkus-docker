@@ -1,8 +1,8 @@
 package org.acme.orders.application;
 
 import org.acme.orders.domain.model.OrderStatus;
-import org.acme.orders.interfaces.rest.dto.CreateOrderRequest;
-import org.acme.orders.interfaces.rest.dto.OrderResponse;
+import org.acme.orders.application.dto.request.CreateOrderRequest;
+import org.acme.orders.application.dto.response.OrderResponse;
 
 import java.util.List;
 
@@ -14,7 +14,7 @@ public interface OrderService {
 
     OrderResponse getOrderById(Long orderId, Long userId);
 
-    OrderResponse updateOrderStatus(Long orderId, Long userId, OrderStatus newStatus);
+    OrderResponse updateOrderStatus(Long orderId, OrderStatus newStatus);
 
     void cancelOrder(Long orderId, Long userId);
 }

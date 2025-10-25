@@ -7,7 +7,7 @@ import org.acme.notifications.application.exception.NotificationApplicationExcep
 import org.acme.notifications.domain.model.Notification;
 import org.acme.notifications.domain.model.NotificationType;
 import org.acme.notifications.domain.repository.NotificationRepository;
-import org.acme.notifications.interfaces.rest.dto.NotificationResponse;
+import org.acme.notifications.application.dto.response.NotificationResponse;
 import org.jboss.logging.Logger;
 
 import java.util.List;

@@ -1,0 +1,144 @@
+
+Waiting for API Gateway (http://192.168.64.33/q/swagger-ui) ...
+  -> Status: 302
+  -> API Gateway responded (HTTP 302)
+
+== Register ADMIN account (admin) ==
+  -> account already exists
+
+== Authenticate admin ==
+  -> token acquired
+
+== Register USER account (alice) ==
+  -> account already exists
+
+== Authenticate alice ==
+  -> token acquired
+
+== Admin creates article 'Scenario Article 1761427294' ==
+  -> article id: 5
+
+== User lists articles ==
+  -> article 5 visible in catalogue
+
+== User views article 5 ==
+  -> article details retrieved
+
+== User creates order for article 5 ==
+  -> Sending order with payload: {
+  "items": [
+    {
+      "articleId": 5,
+      "quantity": 1
+    }
+  ]
+}
+  -> order id: 9
+
+== User verifies order 9 in order list ==
+  -> order 9 listed with status PENDING
+
+== User retrieves order 9 details ==
+  -> order status: PENDING
+
+Waiting for user order-created notification (ORDER_CREATED) ...
+  -> notification received
+
+== User updates order 9 status to CONFIRMED ==
+  -> status updated
+
+== User retrieves order 9 details ==
+  -> order status: CONFIRMED
+
+== User verifies order 9 in order list ==
+  -> order 9 listed with status CONFIRMED
+
+Waiting for user order-confirmed notification (ORDER_CONFIRMED) ...
+  -> notification received
+
+== User updates order 9 status to SHIPPED ==
+  -> status updated
+
+== User retrieves order 9 details ==
+  -> order status: SHIPPED
+
+== User verifies order 9 in order list ==
+  -> order 9 listed with status SHIPPED
+
+Waiting for user order-shipped notification (ORDER_SHIPPED) ...
+  -> notification received
+
+== User updates order 9 status to DELIVERED ==
+  -> status updated
+
+== User retrieves order 9 details ==
+  -> order status: DELIVERED
+
+== User verifies order 9 in order list ==
+  -> order 9 listed with status DELIVERED
+
+Waiting for user order-delivered notification (ORDER_DELIVERED) ...
+  -> notification received
+
+== User creates order for article 5 ==
+  -> Sending order with payload: {
+  "items": [
+    {
+      "articleId": 5,
+      "quantity": 1
+    }
+  ]
+}
+  -> order id: 10
+
+== User verifies order 10 in order list ==
+  -> order 10 listed with status PENDING
+
+== User retrieves order 10 details ==
+  -> order status: PENDING
+
+Waiting for user order-created (cancelled order) notification (ORDER_CREATED) ...
+  -> notification received
+
+== User cancels order 10 ==
+  -> order cancelled
+
+== User retrieves order 10 details ==
+  -> order status: CANCELLED
+
+== User verifies order 10 in order list ==
+  -> order 10 listed with status CANCELLED
+
+Waiting for user order-cancelled notification (ORDER_CANCELLED) ...
+  -> notification received
+
+== User retrieves order 9 details ==
+  -> order status: DELIVERED
+
+== User verifies order 9 in order list ==
+  -> order 9 listed with status DELIVERED
+  -> user has 6 unread notifications
+
+== User marks first unread notification as read ==
+  -> notification 34 marked as read
+
+== User marks all notifications as read ==
+  -> all notifications marked as read
+
+== Admin marks article 5 as unavailable (stock = 0) ==
+  -> stock updated to zero
+
+== Validate article 5 availability status ==
+  -> article no longer listed as available
+
+Note: Admin user id is   -> admin id: 1
+1. Notifications service currently targets userId=1 for STOCK_LOW alerts.
+      Low stock notification verification skipped.
+
+Scenario completed successfully:
+  - Admin: admin (id   -> admin id: 1
+1)
+  - User: alice (id   -> user id: 2
+2)
+  - Article id: 5
+  - Order id: 9

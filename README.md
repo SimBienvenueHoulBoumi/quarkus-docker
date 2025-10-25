@@ -1,5 +1,98 @@
 # 🚀 E-Commerce Microservices - Kafka Quarkus
 
+Avant de démarrer : quand et comment utiliser un POM central (parent)
+
+## 🧭 Quand et comment utiliser un POM central (parent)
+
+Si vous gérez plusieurs modules Quarkus dans le même dépôt (users_service, articles_service, orders_service, notifications_service, etc.), un POM parent (packaging = "pom") est très utile pour :
+
+- Centraliser les versions (java, quarkus, dépendances communes) via <dependencyManagement> et propriétés.
+- Centraliser les plugins Maven (build, surefire, jacoco, spotbugs) via <pluginManagement> pour éviter de dupliquer la configuration.
+- Partager des propriétés et des profiles (ex. quarkus.package.type, java.version, versions de librairies).
+- Commander la construction multi-modules depuis la racine : `mvn -T1C clean package` (ou `mvn -T1C -pl . -am package`).
+
+Exemple minimal de `pom.xml` parent (à placer à la racine) :
+
+```xml
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>kafka-quarkus-parent</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <properties>
+        <java.version>17</java.version>
+        <quarkus.version>3.0.0</quarkus.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Dépendances communes avec versions ici -->
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Plugins partagés ici (maven-compiler-plugin, quarkus-maven-plugin, etc.) -->
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <modules>
+        <module>users_service</module>
+        <module>articles_service</module>
+        <module>orders_service</module>
+        <module>notifications_service</module>
+        <!-- ajouter les autres modules si nécessaire -->
+    </modules>
+</project>
+```
+
+Bonnes pratiques :
+- Gardez le `dependencyManagement` pour fixer les versions, mais déclarez les dépendances dans chaque module normalement.
+- Utilisez `pluginManagement` pour unifier la configuration des plugins tout en permettant des ajustements module par module.
+- Versionnez le parent pour reproduire un état précis des modules.
+
+Important — base de données et Docker
+
+La compilation Maven et la création des artefacts (target/quarkus-app) ne nécessitent pas que Docker soit en cours d'exécution. En revanche, pour exécuter les services Quarkus (via Docker Compose) et qu'ils puissent se connecter à PostgreSQL et à Kafka, vous devez démarrer l'infrastructure Docker (Postgres, Kafka, Traefik, etc.).
+
+Flux recommandé :
+
+1. Construire les services (local build obligatoire avant de lancer les conteneurs qui s'attendent aux artéfacts) :
+
+```bash
+cd /chemin/vers/kafka_quarkus
+mvn -T1C clean package -Dquarkus.package.type=uber-jar
+```
+
+2. Démarrer uniquement l'infrastructure requise (si vous ne souhaitez pas tout rebuild) :
+
+```bash
+# Démarrer Postgres et Kafka (noms des services selon le docker-compose)
+sudo docker compose up -d postgres kafka
+```
+
+3. Démarrer l'ensemble (recommandé si vous modifiez les services et voulez rebuild les images) :
+
+```bash
+sudo docker compose up -d --build
+```
+
+4. Vérifier que les services peuvent atteindre la base de données avant d'exécuter des scénarios ou des tests d'intégration :
+
+```bash
+sudo docker compose ps
+sudo docker compose logs -f postgres
+```
+
+Remarque : si vous souhaitez exécuter les services sans Docker (par exemple en pointant vers une base PostgreSQL distante), adaptez les variables d'environnement (URL, utilisateur, mot de passe) de chaque service et assurez-vous que la DB/Kafka externe est accessible depuis votre machine de développement.
+
+---
+
 Architecture microservices avec **Quarkus**, **Kafka** et **PostgreSQL**.
 
 ---
@@ -44,11 +137,7 @@ traefik joue le role de reverse proxy et loadBalancer
 
 ```bash
 # 1. Construire les services Quarkus (OBLIGATOIRE)
-cd users_service && mvn clean package && cd ..
-cd articles_service && mvn clean package && cd ..
-cd orders_service && mvn clean package && cd ..
-cd notifications_service && mvn clean package && cd ..
-cd api-gateway && mvn clean package && cd ..
+mvn clean package 
 
 # 2. Démarrer les conteneurs
 sudo docker compose up -d --build
@@ -138,314 +227,92 @@ Puis accéder via:
 | PATCH | `/api/notifications/{id}/read` | Marquer lue | JWT |
 
 ---
+## 🔐 Utilisation du script `scripts/run-scenario.sh`
 
-## 🔐 Authentification JWT
+La suite ci-dessous remplace les exemples précédents et explique comment utiliser le script `scripts/run-scenario.sh` fourni dans ce dépôt. Ce script exécute un scénario de bout en bout (création d'utilisateurs, article, commandes, mise à jour des statuts et vérification des notifications) pour tester l'intégration des microservices.
 
-### 1. Créer un Compte
+Pré-requis
+- Le projet doit être construit (Quarkus services) : `mvn clean package` pour chaque service ou au niveau racine si un parent gère les modules.
+- Docker et Docker Compose installés sur la machine hôte.
+- (Optionnel) `jq` installé pour extraire des champs JSON dans les exemples.
 
-```bash
-curl -X POST http://192.168.64.33/users/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "john",
-    "email": "john@example.com",
-    "password": "Password123!"
-  }'
-```
+Emplacement
+- Script : `./scripts/run-scenario.sh`
 
-### 2. Se Connecter
+Usage simple
 
 ```bash
-curl -X POST http://192.168.64.33/users/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "john",
-    "password": "Password123!"
-  }'
+# Se placer à la racine du repo
+cd /path/to/kafka_quarkus
+
+# Construire les services Quarkus (si nécessaire)
+# cd dans chaque module ou exécuter mvn depuis la racine si configuré
+mvn -T1C clean package
+
+# Démarrer l'infrastructure (Traefik, Kafka, Postgres, API Gateway, services)
+sudo docker compose up -d --build
+
+# Lancer le scénario automatisé
+./scripts/run-scenario.sh
 ```
 
-**Réponse:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresIn": 1800
-}
-```
+Ce script attend que l'API Gateway et les services soient joignables, puis exécute le scénario complet. La sortie affiche chaque étape et les IDs créés (users, article, orders, notifications).
 
-### 3. Utiliser le Token
+Options courantes
+- Exécuter en mode verbeux :
 
 ```bash
-curl -X GET http://192.168.64.33/articles/api/articles \
-  -H "Authorization: Bearer YOUR_TOKEN"
+VERBOSE=1 ./scripts/run-scenario.sh
 ```
 
-**Rôles:**
-- **USER**: Créer commandes, voir notifications
-- **ADMIN**: Gérer articles, voir toutes commandes
-
----
-
-## 💡 Exemples d'Utilisation
-
-### Scénario Complet
+- Forcer la récréation des comptes (si le script supporte une variable) :
 
 ```bash
-# 1. Créer compte USER
-curl -X POST http://192.168.64.33/users/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","email":"alice@example.com","password":"Alice123!"}'
-
-# 2. Se connecter
-TOKEN=$(curl -s -X POST http://192.168.64.33/users/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","password":"Alice123!"}' | jq -r '.token')
-
-# 3. Créer compte ADMIN
-curl -X POST http://192.168.64.33/users/api/auth/register/admin \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","email":"admin@example.com","password":"Admin123!"}'
-
-# 4. Se connecter ADMIN
-ADMIN_TOKEN=$(curl -s -X POST http://192.168.64.33/users/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"Admin123!"}' | jq -r '.token')
-
-# 5. Créer article
-curl -X POST http://192.168.64.33/articles/api/articles \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Laptop Dell XPS 15","description":"Haute performance","price":1299.99,"stock":10}'
-
-# 6. Voir articles
-curl http://192.168.64.33/articles/api/articles
-
-# 7. Créer commande
-curl -X POST http://192.168.64.33/orders/api/orders \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"items":[{"articleId":1,"quantity":2}]}'
-
-# 8. Voir mes commandes
-curl http://192.168.64.33/orders/api/orders \
-  -H "Authorization: Bearer $TOKEN"
-
-# 9. Voir notifications
-curl http://192.168.64.33/notifications/api/notifications \
-  -H "Authorization: Bearer $TOKEN"
+FORCE=true ./scripts/run-scenario.sh
 ```
 
----
+(Remarque : ces variables sont des exemples — vérifiez le début du script `scripts/run-scenario.sh` pour les variables d'environnement supportées.)
 
-## 🔧 Troubleshooting
-
-### Port 9092 déjà utilisé
+Exemple d'utilisation avancée (reconstruire puis tester)
 
 ```bash
-# username le processus
-sudo lsof -i :9092
-
-# Arrêter tout
-sudo docker compose down
-
-# Supprimer conteneurs orphelins
-sudo docker compose up -d --remove-orphans
+# Rebuild & run scenario in one command
+mvn -T1C clean package && sudo docker compose up -d --build && ./scripts/run-scenario.sh | tee run-scenario.log
 ```
 
-### Services ne démarrent pas
+Que vérifie le script ?
+- Création et authentification d'un compte ADMIN et d'un compte USER
+- Création d'un article par l'ADMIN
+- Création d'une commande par l'USER
+- Progression des statuts d'une commande (PENDING → CONFIRMED → SHIPPED → DELIVERED)
+- Réception des notifications correspondantes et opérations de lecture
+- Annulation et gestion des stocks
+
+Sortie et indicateurs importants
+- Recherchez dans la sortie : `token acquired`, `article id:`, `order id:`, `notification received`.
+- Le script affiche le nombre de notifications non lues et marque des notifications comme lues pour tester le service `notifications`.
+
+Dépannage rapide
+- Si le script bloque sur "Waiting for API Gateway" : vérifiez que Traefik et l'API Gateway sont accessibles (cf. `http://<host>/q/swagger-ui`).
+- Si un service Quarkus renvoie "target/quarkus-app not found" : reconstruisez le service avec `mvn package -Dquarkus.package.type=uber-jar`.
+- Pour voir les logs des services :
 
 ```bash
-# Vérifier logs
-sudo docker compose logs service_name
-
-# Vérifier PostgreSQL
-sudo docker compose ps postgres  # Doit être "healthy"
-
-# Redémarrer
-sudo docker compose restart service_name
+sudo docker compose logs -f api_gateway
+sudo docker compose logs -f users_service
+sudo docker compose logs -f notifications_service
 ```
 
-### Erreur "target/quarkus-app/quarkus not found"
+Adaptations possibles
+- Intégrer le script dans une pipeline CI pour exécuter un smoke-test après un déploiement.
+- Exposer des options supplémentaires au script (timeout, retry counts, base URL) si vous en avez besoin — contributions bienvenues.
 
-**Cause:** Le build Maven n'a pas créé la structure de répertoires attendue pour le fast-jar Quarkus.
+Sécurité
+- Les routes de création d'administrateur ne doivent pas rester ouvertes en production. Utilisez des mécanismes sécurisés pour initialiser les administrateurs (secrets, scripts de migration ou tokens d'activation).
 
-**Solutions:**
-```bash
-# Vérifier que le build Maven a réussi
-cd orders_service  # ou autre service
-mvn clean package
-ls -la target/quarkus-app/
+Fin
 
-# Si le répertoire n'existe pas, forcer le type de package
-mvn clean package -Dquarkus.package.type=fast-jar
-
-# Ou utiliser uber-jar (recommandé pour Docker)
-mvn clean package -Dquarkus.package.type=uber-jar
-
-# Vérifier la structure créée
-ls -la target/
-# Doit contenir: quarkus-app/ avec lib/, app/, quarkus/, *.jar
-
-# Nettoyer et reconstruire si nécessaire
-mvn clean
-mvn package -Dquarkus.package.type=uber-jar
-```
-
-### Swagger UI ne charge pas
-
-```bash
-# Tester OpenAPI via Traefik
-curl http://192.168.64.33/q/openapi
-
-# Redémarrer API Gateway
-docker compose down -v --remove-orphans
-docker compose rm -fsv   # optionnel, si tu veux vraiment tout forcer
-docker volume prune      # seulement si tu veux aussi nettoyer d'autres volumes inutilisés
-
-docker system prune -a --volumes -f
-docker compose down -v --rmi all --remove-orphans
-
-docker image rm kafka_quarkus-api_gateway \
-                kafka_quarkus-users_service \
-                kafka_quarkus-articles_service \
-                kafka_quarkus-orders_service \
-                kafka_quarkus-notifications_service
-
-docker compose up -d --build
-```
-
-### Token JWT invalide
-
-```bash
-# Obtenir nouveau token (expire après 30 min)
-curl -X POST http://192.168.64.33/users/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"testuser","password":"Test1234!"}'
-```
-
-### Accès depuis machine locale bloqué
-
-**Solution 1: Tunnel SSH (Recommandé)**
-```bash
-ssh -L 80:localhost:80 -L 8090:localhost:8090 k8s@192.168.64.33
-```
-
-**Solution 2: Pare-feu**
-```bash
-sudo ufw allow 80/tcp
-sudo ufw allow 8090/tcp
-```
-
-**Solution 3: Mode Bridge VM**
-```bash
-multipass stop master3
-multipass set local.master3.network=bridge
-multipass start master3
-```
-
----
-
-## 📊 Configuration
-
-### Ports
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Traefik | 80 | Reverse Proxy |
-| Traefik Dashboard | 8090 | Interface d'administration |
-| API Gateway | 9000 | Point d'entrée |
-| Users | 8081 | Authentification |
-| Articles | 8082 | Catalogue |
-| Orders | 8083 | Commandes |
-| Notifications | 8084 | Notifications |
-| Kafka-1 | 9092 | Broker 1 |
-| Kafka-2 | 9093 | Broker 2 |
-| Kafka-3 | 9094 | Broker 3 |
-| PostgreSQL | 5432 | Database |
-
-### Base de Données
-
-```bash
-# Connexion
-sudo docker exec -it postgres psql -U appuser -d appdb
-
-# Tables
-\dt  # Liste tables
-SELECT * FROM users;
-SELECT * FROM articles;
-SELECT * FROM orders;
-SELECT * FROM notifications;
-```
-
-### Kafka Topics
-
-```bash
-# Liste topics
-sudo docker exec -it kafka kafka-topics.sh --bootstrap-server localhost:9092 --list
-
-# Consommer messages
-sudo docker exec -it kafka kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic article.events \
-  --from-beginning
-```
-
----
-
-## ⚠️ Limitations Production
-
-**Non production-ready:**
-- ❌ Pas de circuit breaker
-- ❌ Secrets hardcodés
-- ❌ Pas de HTTPS/TLS
-- ❌ Single point of failure
-- ❌ Pas de monitoring
-- ❌ 0% tests
-
-**Pour production:**
-- Resilience4j (circuit breaker)
-- Secrets Manager (Vault)
-- Reverse proxy (Nginx + SSL)
-- Kubernetes (HA)
-- Prometheus + Grafana
-- Tests (80%+ coverage)
-
----
-
-## 📞 Support
-
-```bash
-# Logs
-sudo docker compose logs -f
-sudo docker compose logs -f service_name
-sudo docker compose logs --tail=100 kafka
-
-# Debug
-sudo docker exec -it service_name /bin/sh
-sudo docker inspect service_name
-
-# Nettoyage
-sudo docker system prune -a
-sudo docker volume prune
-
-# Swagger UI API Gateway:
-http://192.168.64.33/q/swagger-ui/
-
-# OpenAPI Spec:
-http://192.168.64.33/q/openapi
-
-# Dashboard Traefik:
-http://192.168.64.33:8090
-
-# Services individuels:
-http://192.168.64.33:8081/swagger/users/
-http://192.168.64.33:8082/swagger/articles/
-http://192.168.64.33:8083/swagger/orders/
-http://192.168.64.33:8084/swagger/notifications/
-
-```
-
----
-docker volume ls -q | xargs -r docker volume rm
+Cette section remplace les exemples précédents et est dédiée à l'utilisation et au dépannage du script `scripts/run-scenario.sh`.
 
 ## 📄 License
 

@@ -10,12 +10,15 @@ import org.acme.users.domain.repository.UserRepository;
 import org.acme.users.domain.value.Email;
 import org.acme.users.infrastructure.security.JwtService;
 import org.acme.users.infrastructure.security.JwtService.TokenWithExpiry;
-import org.acme.users.interfaces.rest.dto.AuthResponse;
-import org.acme.users.interfaces.rest.dto.LoginRequest;
-import org.acme.users.interfaces.rest.dto.RegisterRequest;
-import org.acme.users.interfaces.rest.dto.UserResponse;
+import org.acme.users.application.dto.response.AuthResponse;
+import org.acme.users.application.dto.request.LoginRequest;
+import org.acme.users.application.dto.request.RegisterRequest;
+import org.acme.users.application.dto.request.UpdateUserRequest;
+import org.acme.users.application.dto.response.UserResponse;
 
 import org.mindrot.jbcrypt.BCrypt;
+
+import java.util.List;
 
 @ApplicationScoped
 public class UserServiceImpl implements UserService {
@@ -83,12 +86,65 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse findUserProfile(Long userId) {
-        User user = userRepository.findOptionalById(userId)
-                .orElseThrow(() -> new UserApplicationException("User not found", 404));
+        return userMapper.toResponse(getUserOrThrow(userId));
+    }
+
+    @Transactional
+    @Override
+    public UserResponse updateUserProfile(Long userId, UpdateUserRequest request) {
+        User user = getUserOrThrow(userId);
+
+        if (hasText(request.username()) && !request.username().equals(user.getUsername())) {
+            userRepository.findByUsername(request.username()).ifPresent(existing -> {
+                if (!existing.getId().equals(userId)) {
+                    throw new UserApplicationException(
+                            "username '%s' is already taken".formatted(request.username()), 409);
+                }
+            });
+            user.setUsername(request.username());
+        }
+
+        if (hasText(request.email())) {
+            Email email = Email.of(request.email());
+            userRepository.findByEmail(email.getValue()).ifPresent(existing -> {
+                if (!existing.getId().equals(userId)) {
+                    throw new UserApplicationException(
+                            "email '%s' is already registered".formatted(request.email()), 409);
+                }
+            });
+            user.setEmail(email);
+        }
+
+        if (hasText(request.password())) {
+            user.setPasswordHash(hashPassword(request.password()));
+        }
+
+        userRepository.persist(user);
         return userMapper.toResponse(user);
+    }
+
+    @Override
+    public List<UserResponse> findAllUsers() {
+        return userRepository.listAll().stream()
+                .map(userMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    public UserResponse findUserById(Long userId) {
+        return userMapper.toResponse(getUserOrThrow(userId));
     }
 
     private String hashPassword(String rawPassword) {
         return BCrypt.hashpw(rawPassword, BCrypt.gensalt(12));
+    }
+
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findOptionalById(userId)
+                .orElseThrow(() -> new UserApplicationException("User not found", 404));
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

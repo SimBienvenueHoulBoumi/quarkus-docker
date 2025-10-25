@@ -6,10 +6,23 @@
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 
-# Copy project descriptor and sources then build
+# allow passing the module name from docker build context (via docker-compose build-arg)
+ARG SERVICE_MODULE=users_service
+
+# copy root pom and the module sources so maven can build the module with its parent
+
 COPY pom.xml ./
-COPY src ./src
-RUN mvn -B -DskipTests package
+COPY api-gateway/pom.xml api-gateway/pom.xml
+COPY users_service/pom.xml users_service/pom.xml
+COPY articles_service/pom.xml articles_service/pom.xml
+COPY orders_service/pom.xml orders_service/pom.xml
+COPY notifications_service/pom.xml notifications_service/pom.xml
+
+COPY ${SERVICE_MODULE}/pom.xml ${SERVICE_MODULE}/pom.xml
+COPY ${SERVICE_MODULE}/src ${SERVICE_MODULE}/src
+
+# build only the targeted module (and its dependencies)
+RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests -f pom.xml -pl ${SERVICE_MODULE} -am package
 
 ##
 # Runtime stage
@@ -18,11 +31,17 @@ FROM registry.access.redhat.com/ubi9/openjdk-17:1.23
 
 ENV LANGUAGE='en_US:en'
 
+# Image metadata
+LABEL org.opencontainers.image.source="https://github.com/SimBienvenueHoulBoumi/land-reservation-docker-quarkus"
+LABEL org.opencontainers.image.licenses="MIT"
+# Optional healthcheck (uncomment if curl is available in the runtime image)
+# HEALTHCHECK --interval=30s --timeout=5s CMD curl -f http://localhost:8080/q/health || exit 1
+
 # Copy the Quarkus runner produced during the build stage
-COPY --from=build --chown=185 /workspace/target/quarkus-app/lib/ /deployments/lib/
-COPY --from=build --chown=185 /workspace/target/quarkus-app/*.jar /deployments/
-COPY --from=build --chown=185 /workspace/target/quarkus-app/app/ /deployments/app/
-COPY --from=build --chown=185 /workspace/target/quarkus-app/quarkus/ /deployments/quarkus/
+COPY --from=build --chown=185 /workspace/users_service/target/quarkus-app/lib/ /deployments/lib/
+COPY --from=build --chown=185 /workspace/users_service/target/quarkus-app/*.jar /deployments/
+COPY --from=build --chown=185 /workspace/users_service/target/quarkus-app/app/ /deployments/app/
+COPY --from=build --chown=185 /workspace/users_service/target/quarkus-app/quarkus/ /deployments/quarkus/
 
 EXPOSE 8080
 USER 185

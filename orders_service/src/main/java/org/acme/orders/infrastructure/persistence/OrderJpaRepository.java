@@ -17,6 +17,7 @@ public class OrderJpaRepository implements OrderRepository {
     @PersistenceContext
     EntityManager entityManager;
 
+    @Override
     public void persist(Order order) {
         if (order.getId() == null) {
             entityManager.persist(order);
@@ -25,6 +26,7 @@ public class OrderJpaRepository implements OrderRepository {
         }
     }
 
+    @Override
     public Optional<Order> findByIdAndUserId(Long id, Long userId) {
         TypedQuery<Order> query = entityManager.createQuery(
                 "select o from Order o where o.id = :id and o.userId = :userId",
@@ -34,6 +36,12 @@ public class OrderJpaRepository implements OrderRepository {
         return query.getResultStream().findFirst();
     }
 
+    @Override
+    public Optional<Order> findOptionalById(Long id) {
+        return Optional.ofNullable(entityManager.find(Order.class, id));
+    }
+
+    @Override
     public List<Order> findByUserId(Long userId) {
         return entityManager.createQuery(
                 "select o from Order o where o.userId = :userId",
@@ -42,6 +50,7 @@ public class OrderJpaRepository implements OrderRepository {
                 .getResultList();
     }
 
+    @Override
     public List<Order> findByUserIdAndStatus(Long userId, OrderStatus status) {
         return entityManager.createQuery(
                 "select o from Order o where o.userId = :userId and o.status = :status",

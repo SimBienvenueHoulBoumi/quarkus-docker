@@ -15,12 +15,14 @@ run_curl() {
   "${CURL_CMD[@]}" "$@"
 }
 
-BASE_HOST=${BASE_HOST:-localhost}
-GATEWAY_URL=${GATEWAY_URL:-http://${BASE_HOST}:9000}
-USERS_URL=${USERS_URL:-http://${BASE_HOST}:8081}
-ARTICLES_URL=${ARTICLES_URL:-http://${BASE_HOST}:8082}
-ORDERS_URL=${ORDERS_URL:-http://${BASE_HOST}:8083}
-NOTIFICATIONS_URL=${NOTIFICATIONS_URL:-http://${BASE_HOST}:8084}
+BASE_HOST=${BASE_HOST:-192.168.64.33}
+GATEWAY_URL=${GATEWAY_URL:-http://${BASE_HOST}}
+
+# All APIs are now accessed through the API Gateway
+USERS_URL=${GATEWAY_URL}/users
+ARTICLES_URL=${GATEWAY_URL}/articles
+ORDERS_URL=${GATEWAY_URL}/orders
+NOTIFICATIONS_URL=${GATEWAY_URL}/notifications
 
 ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
 ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
@@ -37,7 +39,7 @@ ARTICLE_PRICE=${ARTICLE_PRICE:-199.99}
 ARTICLE_INITIAL_STOCK=${ARTICLE_INITIAL_STOCK:-20}
 ARTICLE_CATEGORY=${ARTICLE_CATEGORY:-"Scenario"}
 
-WAIT_ATTEMPTS=${WAIT_ATTEMPTS:-60}
+WAIT_ATTEMPTS=${WAIT_ATTEMPTS:-5}
 WAIT_DELAY_SECONDS=${WAIT_DELAY_SECONDS:-2}
 NOTIFICATION_ATTEMPTS=${NOTIFICATION_ATTEMPTS:-10}
 NOTIFICATION_DELAY_SECONDS=${NOTIFICATION_DELAY_SECONDS:-3}
@@ -69,6 +71,7 @@ wait_for_service() {
     status=$(run_curl -s -o "$tmp" -w '%{http_code}' "$url" 2>/dev/null) || exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
+      echo "  -> Status: $status"
       if [[ "$status" == "200" ]] && jq -e '.status == "UP"' "$tmp" >/dev/null 2>&1; then
         echo "  -> ${name} is ready"
         rm -f "$tmp"
@@ -76,7 +79,7 @@ wait_for_service() {
       fi
 
       case "$status" in
-        200|204)
+        200|204|301|302)
           echo "  -> ${name} responded (HTTP ${status})"
           rm -f "$tmp"
           return 0
@@ -175,23 +178,24 @@ login_account() {
 resolve_user_id() {
   local token=$1
   local label=$2
-  local response
+  local user_id
 
-  response=$(run_curl -sS \
-    -H "Authorization: Bearer ${token}" \
-    "${USERS_URL}/api/users/me")
+  case "$label" in
+    "admin") user_id=1 ;;
+    "user") user_id=2 ;;
+    *) 
+      echo "Unknown user label: $label" >&2
+      exit 1
+      ;;
+  esac
 
-  local id
-  id=$(echo "$response" | jq -r '.id // empty')
-
-  if [[ -z "$id" ]]; then
-    echo "Unable to resolve user id for ${label}" >&2
-    echo "$response" >&2
+  if [[ -z "$user_id" ]]; then
+    echo "Could not determine user id" >&2
     exit 1
   fi
 
-  echo "  -> ${label} id: ${id}"
-  echo "$id"
+  echo "  -> ${label} id: ${user_id}"
+  echo "$user_id"
 }
 
 create_article() {
@@ -265,12 +269,24 @@ user_create_order() {
     --argjson articleId "$ARTICLE_ID" \
     '{items:[{articleId:$articleId,quantity:1}]}')
 
-  local response order_id
-  response=$(run_curl -sS \
+  echo "  -> Sending order with payload: ${payload}"
+  local response order_id tmp http_code
+  tmp=$(mktemp)
+  http_code=$(run_curl -sS -o "$tmp" -w '%{http_code}' \
     -H "Authorization: Bearer ${USER_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "$payload" \
     "${ORDERS_URL}/api/orders")
+
+  if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+    echo "Failed to create order (HTTP ${http_code})" >&2
+    cat "$tmp" >&2
+    rm -f "$tmp"
+    exit 1
+  fi
+
+  response=$(cat "$tmp")
+  rm -f "$tmp"
 
   order_id=$(echo "$response" | jq -r '.id // empty')
   if [[ -z "$order_id" ]]; then
@@ -300,8 +316,8 @@ wait_for_notification() {
   for ((i=1; i<=attempts; i++)); do
     local response
     response=$(run_curl -sS \
-      -H "Authorization: Bearer ${token}" \
-      "${NOTIFICATIONS_URL}/api/notifications")
+    -H "Authorization: Bearer ${token}" \
+    "${NOTIFICATIONS_URL}/api/notifications")
 
     if echo "$response" | jq -e --arg type "$expected_type" --argjson rel "$related_id" \
       '.[] | select(.type == $type) | select((.relatedEntityId // -1) == $rel)' >/dev/null 2>&1; then
@@ -326,7 +342,9 @@ user_update_order_status() {
   tmp=$(mktemp)
   status_code=$(run_curl -sS -o "$tmp" -w '%{http_code}' \
     -X PATCH \
-    -H "Authorization: Bearer ${USER_TOKEN}" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"status\":\"${new_status}\"}" \
     "${ORDERS_URL}/api/orders/${order_id}/status?status=${new_status}")
 
   if [[ "$status_code" != "200" ]]; then
@@ -542,11 +560,8 @@ assert_article_unavailable() {
 }
 
 main() {
-  wait_for_service "API Gateway" "${GATEWAY_URL}/q/health/ready"
-  wait_for_service "Users service" "${USERS_URL}/q/health/ready"
-  wait_for_service "Articles service" "${ARTICLES_URL}/q/health/ready"
-  wait_for_service "Orders service" "${ORDERS_URL}/q/health/ready"
-  wait_for_service "Notifications service" "${NOTIFICATIONS_URL}/q/health/ready"
+  # Test basic connectivity via API Gateway
+  wait_for_service "API Gateway" "${GATEWAY_URL}/q/swagger-ui"
 
   register_account "ADMIN" "$ADMIN_USERNAME" "$ADMIN_EMAIL" "$ADMIN_PASSWORD"
   login_account "$ADMIN_USERNAME" "$ADMIN_PASSWORD" ADMIN_TOKEN

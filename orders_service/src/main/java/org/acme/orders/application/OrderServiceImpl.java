@@ -13,9 +13,9 @@ import org.acme.orders.domain.model.Order;
 import org.acme.orders.domain.model.OrderStatus;
 import org.acme.orders.domain.repository.OrderRepository;
 import org.acme.orders.domain.service.OrderDomainService;
-import org.acme.orders.interfaces.rest.dto.CreateOrderRequest;
-import org.acme.orders.interfaces.rest.dto.OrderItemRequest;
-import org.acme.orders.interfaces.rest.dto.OrderResponse;
+import org.acme.orders.application.dto.request.CreateOrderRequest;
+import org.acme.orders.application.dto.request.OrderItemRequest;
+import org.acme.orders.application.dto.response.OrderResponse;
 
 import java.util.List;
 
@@ -84,13 +84,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Transactional
     @Override
-    public OrderResponse updateOrderStatus(Long orderId, Long userId, OrderStatus newStatus) {
-        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+    public OrderResponse updateOrderStatus(Long orderId, OrderStatus newStatus) {
+        Order order = orderRepository.findOptionalById(orderId)
                 .orElseThrow(() -> new OrderApplicationException("Order not found", 404));
 
         try {
             if (newStatus == OrderStatus.CANCELLED) {
-                orderDomainService.cancelOrder(order, "Cancelled by user");
+                orderDomainService.cancelOrder(order, "Cancelled by admin");
             } else {
                 orderDomainService.changeStatus(order, newStatus);
             }

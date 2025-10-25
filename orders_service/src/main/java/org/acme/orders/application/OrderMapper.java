@@ -3,8 +3,8 @@ package org.acme.orders.application;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.orders.domain.model.Order;
 import org.acme.orders.domain.model.OrderItem;
-import org.acme.orders.interfaces.rest.dto.OrderItemResponse;
-import org.acme.orders.interfaces.rest.dto.OrderResponse;
+import org.acme.orders.application.dto.response.OrderItemResponse;
+import org.acme.orders.application.dto.response.OrderResponse;
 
 import java.util.List;
 import java.util.stream.Collectors;

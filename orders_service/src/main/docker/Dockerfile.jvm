@@ -1,11 +1,36 @@
+# syntax=docker/dockerfile:1.6
+
+FROM maven:3.9.9-eclipse-temurin-17 AS build
+WORKDIR /workspace
+
+ARG SERVICE_MODULE=orders_service
+
+COPY pom.xml ./
+COPY api-gateway/pom.xml api-gateway/pom.xml
+COPY users_service/pom.xml users_service/pom.xml
+COPY articles_service/pom.xml articles_service/pom.xml
+COPY orders_service/pom.xml orders_service/pom.xml
+COPY notifications_service/pom.xml notifications_service/pom.xml
+
+COPY ${SERVICE_MODULE}/pom.xml ${SERVICE_MODULE}/pom.xml
+COPY ${SERVICE_MODULE}/src ${SERVICE_MODULE}/src
+
+RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests -f pom.xml -pl ${SERVICE_MODULE} -am package
+
 FROM registry.access.redhat.com/ubi8/openjdk-17:1.20
 
 ENV LANGUAGE='en_US:en'
 
-COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/
-COPY --chown=185 target/quarkus-app/*.jar /deployments/
-COPY --chown=185 target/quarkus-app/app/ /deployments/app/
-COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
+# Image metadata
+LABEL org.opencontainers.image.source="https://github.com/SimBienvenueHoulBoumi/land-reservation-docker-quarkus"
+LABEL org.opencontainers.image.licenses="MIT"
+# Optional healthcheck (uncomment if curl is available in the runtime image)
+# HEALTHCHECK --interval=30s --timeout=5s CMD curl -f http://localhost:8083/q/health || exit 1
+
+COPY --from=build --chown=185 /workspace/orders_service/target/quarkus-app/lib/ /deployments/lib/
+COPY --from=build --chown=185 /workspace/orders_service/target/quarkus-app/*.jar /deployments/
+COPY --from=build --chown=185 /workspace/orders_service/target/quarkus-app/app/ /deployments/app/
+COPY --from=build --chown=185 /workspace/orders_service/target/quarkus-app/quarkus/ /deployments/quarkus/
 
 EXPOSE 8083
 

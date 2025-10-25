@@ -1,6 +1,6 @@
 package org.acme.notifications.application;
 
-import org.acme.notifications.interfaces.rest.dto.NotificationResponse;
+import org.acme.notifications.application.dto.response.NotificationResponse;
 
 import java.util.List;
 

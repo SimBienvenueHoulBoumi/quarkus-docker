@@ -2,6 +2,7 @@ package org.acme.users.domain.repository;
 
 import org.acme.users.domain.model.User;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository {
@@ -15,4 +16,6 @@ public interface UserRepository {
     Optional<User> findByEmail(String email);
 
     Optional<User> findByUsernameOrEmail(String usernameOrEmail);
+
+    List<User> listAll();
 }
